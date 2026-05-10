@@ -1,0 +1,459 @@
+/* Mock iPhone USB + animations (hors Tailwind) */
+
+.phone-dock {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  flex-shrink: 0;
+}
+.dock-laptop-edge {
+  width: 72px;
+  height: 8px;
+  background: linear-gradient(180deg, #2a4466 0%, #152535 100%);
+  border-radius: 3px 3px 0 0;
+  margin-bottom: 0;
+}
+.dock-cable-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 28px;
+  margin: 0 2px 2px;
+  position: relative;
+}
+.dock-cable {
+  width: 5px;
+  height: 32px;
+  background: linear-gradient(90deg, #3d4f66, #1e2a38);
+  border-radius: 2px;
+}
+.dock-connector {
+  width: 12px;
+  height: 7px;
+  background: linear-gradient(#8a939e, #4a5666);
+  border-radius: 1px 1px 3px 3px;
+  margin-top: -1px;
+}
+.dock-phone {
+  width: 64px;
+  height: 108px;
+  background: linear-gradient(145deg, #2e3d52, #101820);
+  border-radius: 10px;
+  padding: 4px;
+  border: 1px solid rgba(120, 160, 210, 0.28);
+  position: relative;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+  background: radial-gradient(circle at 50% 20%, rgba(80, 140, 230, 0.25), #050a10 72%);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+}
+.phone-notch {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 4px;
+  background: #0a121a;
+  border-radius: 0 0 4px 4px;
+}
+.phone-port-slot {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 1px;
+}
+.dock--plug .dock-cable-wrap {
+  animation: cable-insert 2.8s ease-in-out infinite alternate;
+}
+.dock--plug .dock-phone {
+  animation: phone-tilt 2.8s ease-in-out infinite alternate;
+}
+.dock--trust .phone-screen {
+  animation: pulse-trust 1.9s ease-in-out infinite;
+}
+.dock--connected .dock-phone {
+  animation: phone-glow 2.6s ease-in-out infinite alternate;
+}
+.dock--connected .dock-cable-wrap {
+  transform: translateY(2px);
+}
+@keyframes cable-insert {
+  0%,
+  38% {
+    transform: translateY(-12px);
+    opacity: 0.55;
+  }
+  65%,
+  100% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+}
+@keyframes phone-tilt {
+  0%,
+  35% {
+    transform: rotate(-3deg);
+  }
+  70%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+@keyframes pulse-trust {
+  0%,
+  100% {
+    filter: saturate(1) brightness(0.92);
+    box-shadow: inset 0 0 0 2px transparent;
+  }
+  50% {
+    filter: saturate(1.2) brightness(1.05);
+    box-shadow: inset 0 0 0 2px rgba(255, 200, 100, 0.35);
+  }
+}
+@keyframes phone-glow {
+  0% {
+    box-shadow: 0 0 0 rgba(94, 255, 173, 0);
+  }
+  100% {
+    box-shadow: 0 0 18px rgba(94, 255, 173, 0.28);
+    border-color: rgba(120, 210, 175, 0.45);
+  }
+}
+.plug-hint-mini {
+  position: absolute;
+  inset: auto 8px 28px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #87b7ff;
+}
+.plug-hint-mini--solo {
+  inset: auto 8px 20px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: calc(100% - 16px);
+}
+.plug-glow-ring {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid rgba(120, 200, 255, 0.38);
+  box-shadow: 0 0 18px rgba(77, 163, 255, 0.25);
+  animation: plug-ring-breathe 2.1s ease-in-out infinite;
+}
+.plug-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #b8e4ff, #4da3ff);
+  box-shadow: 0 0 16px rgba(77, 163, 255, 0.85);
+}
+.plug-caption {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: #a8d8ff;
+  text-transform: uppercase;
+}
+@keyframes plug-ring-breathe {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+.trust-pop {
+  position: absolute;
+  inset: 18px 6px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  font-size: 9px;
+  text-align: center;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(30, 38, 54, 0.96);
+  border: 1px solid rgba(255, 200, 120, 0.35);
+  color: #ffe8bf;
+}
+.trust-title {
+  font-weight: 800;
+}
+.trust-yes {
+  display: block;
+  text-align: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: linear-gradient(#4ea556, #2d7340);
+  color: white;
+  font-weight: 800;
+  font-size: 10px;
+}
+.trust-yes.pulse {
+  animation: pulse-btn 1.4s ease-in-out infinite alternate;
+}
+.trust-hint {
+  opacity: 0.65;
+  font-size: 7px;
+}
+@keyframes pulse-btn {
+  from {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  to {
+    filter: brightness(1.12);
+    transform: scale(1.03);
+  }
+}
+
+.orbit-wrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: 10px auto 4px;
+}
+.orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #4ea1ff;
+  border-right-color: rgba(126, 200, 255, 0.24);
+  animation: orbit-spin 0.92s linear infinite;
+}
+.orbit-core {
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.15), transparent 62%),
+    linear-gradient(160deg, #1c4a7a 0%, #0c1c30 85%);
+  box-shadow: 0 0 22px rgba(78, 161, 255, 0.28);
+}
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dot-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ea1ff;
+  animation: dot-p 0.9s ease-in-out infinite alternate;
+}
+@keyframes dot-p {
+  from {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 0 10px rgba(78, 161, 255, 0.65);
+  }
+}
+
+.trust-aura {
+  position: relative;
+  padding: 20px 22px;
+}
+.trust-aura::before {
+  content: '';
+  position: absolute;
+  inset: 4px 8px auto;
+  width: calc(100% - 44px);
+  height: calc(100% - 44px);
+  margin: auto;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 200, 120, 0.35);
+  animation: aura-pulse 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes aura-pulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.95;
+  }
+}
+
+.hero-phone-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 152px;
+  padding: 14px 16px 10px;
+}
+.hero-phone-wrap::before {
+  content: '';
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle closest-side,
+    rgba(77, 163, 255, 0.24) 0%,
+    rgba(92, 228, 180, 0.09) 45%,
+    transparent 70%
+  );
+  animation: hero-orb-glow 4.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.hero-phone-wrap .phone-dock {
+  position: relative;
+  z-index: 1;
+}
+.hero-phone-wrap--muted::before {
+  opacity: 0.4;
+  filter: saturate(0.7);
+}
+.hero-phone-wrap--muted .dock-phone {
+  filter: saturate(0.85) brightness(0.9);
+}
+@keyframes hero-orb-glow {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.92);
+    opacity: 0.78;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.06);
+    opacity: 1;
+  }
+}
+
+.phone-dock--solo {
+  margin: 0 auto;
+}
+.phone-dock--hero.phone-dock--solo {
+  transform: scale(1.38);
+  transform-origin: center center;
+  margin-bottom: 0;
+}
+.phone-dock--solo .dock-phone {
+  animation: solo-phone-float 3.8s ease-in-out infinite alternate;
+  border-radius: 16px !important;
+  border: 1px solid rgba(140, 210, 255, 0.32) !important;
+  box-shadow:
+    0 0 0 1px rgba(92, 228, 180, 0.1),
+    0 22px 56px rgba(0, 0, 0, 0.48),
+    0 0 52px rgba(77, 163, 255, 0.2) !important;
+}
+.dock--connected.phone-dock--solo .dock-phone {
+  animation:
+    solo-phone-float 3.8s ease-in-out infinite alternate,
+    solo-phone-glow 2.7s ease-in-out infinite alternate;
+}
+.dock--trust.phone-dock--solo .dock-phone {
+  animation:
+    solo-phone-float 3.8s ease-in-out infinite alternate,
+    pulse-trust 2s ease-in-out infinite;
+}
+@keyframes solo-phone-float {
+  from {
+    transform: translateY(4px);
+  }
+  to {
+    transform: translateY(-9px);
+  }
+}
+@keyframes solo-phone-glow {
+  from {
+    box-shadow:
+      0 0 0 1px rgba(92, 228, 180, 0.14),
+      0 22px 56px rgba(0, 0, 0, 0.48),
+      0 0 40px rgba(92, 228, 180, 0.14);
+  }
+  to {
+    box-shadow:
+      0 0 0 1px rgba(92, 228, 180, 0.32),
+      0 26px 60px rgba(0, 0, 0, 0.52),
+      0 0 64px rgba(92, 228, 180, 0.24);
+  }
+}
+
+.trust-pop--hero {
+  position: absolute !important;
+  inset: 16px 4px auto !important;
+}
+.trust-pop--hero .trust-ring {
+  position: absolute;
+  top: -8px;
+  left: -4px;
+  right: -4px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 200, 100, 0.9) 50%, transparent 100%);
+}
+
+.connected-specs {
+  position: absolute;
+  inset: 18px 4px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+  pointer-events: none;
+}
+.connected-specs .check-mini {
+  font-size: 16px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.spec-main {
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: #fff;
+  letter-spacing: -0.02em;
+  hyphens: auto;
+  word-break: break-word;
+  max-height: 40px;
+  overflow: visible;
+}
+.spec-ios {
+  font-size: 9px;
+  font-weight: 800;
+  color: #9fe0ff;
+  letter-spacing: 0.01em;
+}
+
+.orbit-inline.orbit-wrap {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto;
+}
+.orbit-inline .orbit-core {
+  inset: 15px;
+}

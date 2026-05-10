@@ -1,0 +1,239 @@
+{
+  "iphone_paniclog_knowledgebase": {
+    "devices": {
+      "legacy": [
+        "iPhone 2G",
+        "iPhone 3G",
+        "iPhone 3GS",
+        "iPhone 4",
+        "iPhone 4S",
+        "iPhone 5",
+        "iPhone 5C",
+        "iPhone 5S",
+        "iPhone 6",
+        "iPhone 6 Plus",
+        "iPhone 6S",
+        "iPhone 6S Plus",
+        "iPhone SE 1",
+        "iPhone 7",
+        "iPhone 7 Plus",
+        "iPhone 8",
+        "iPhone 8 Plus",
+        "iPhone X"
+      ],
+      "modern": [
+        "iPhone XR",
+        "iPhone XS",
+        "iPhone XS Max",
+        "iPhone 11",
+        "iPhone 11 Pro",
+        "iPhone 11 Pro Max",
+        "iPhone SE 2020",
+        "iPhone 12 mini",
+        "iPhone 12",
+        "iPhone 12 Pro",
+        "iPhone 12 Pro Max",
+        "iPhone 13 mini",
+        "iPhone 13",
+        "iPhone 13 Pro",
+        "iPhone 13 Pro Max",
+        "iPhone SE 2022",
+        "iPhone 14",
+        "iPhone 14 Plus",
+        "iPhone 14 Pro",
+        "iPhone 14 Pro Max",
+        "iPhone 15",
+        "iPhone 15 Plus",
+        "iPhone 15 Pro",
+        "iPhone 15 Pro Max",
+        "iPhone 16",
+        "iPhone 16 Plus",
+        "iPhone 16 Pro",
+        "iPhone 16 Pro Max",
+        "iPhone 17",
+        "iPhone 17 Air",
+        "iPhone 17 Pro",
+        "iPhone 17 Pro Max"
+      ]
+    },
+    "common_panic_patterns": [
+      {
+        "signature": "userspace watchdog timeout",
+        "causes": [
+          "NAND failure",
+          "Baseband failure",
+          "PMIC instability",
+          "iOS corruption",
+          "Sensor bus freeze"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "signature": "No successful checkins from thermalmonitord",
+        "causes": [
+          "Thermal sensor missing",
+          "Charging flex failure",
+          "Battery communication issue",
+          "Wireless charging flex failure"
+        ],
+        "confidence": 0.95
+      },
+      {
+        "signature": "AOP PANIC",
+        "causes": [
+          "Face ID flex failure",
+          "Earspeaker assembly",
+          "Front sensor cable",
+          "Flood illuminator"
+        ],
+        "confidence": 0.9
+      },
+      {
+        "signature": "SMC PANIC ASSERT",
+        "causes": [
+          "Battery issue",
+          "Power rail instability",
+          "PMU issue",
+          "Thermal communication failure"
+        ],
+        "confidence": 0.85
+      },
+      {
+        "signature": "ANS2 Recoverable Panic",
+        "causes": [
+          "NAND degradation",
+          "Storage controller issue"
+        ],
+        "confidence": 0.92
+      },
+      {
+        "signature": "Baseband Panic",
+        "causes": [
+          "Modem failure",
+          "Baseband CPU issue",
+          "Sandwich board separation",
+          "RF line damage"
+        ],
+        "confidence": 0.88
+      },
+      {
+        "signature": "mic2 interrupt watchdog",
+        "causes": ["Audio IC failure"],
+        "models": ["iPhone 7", "iPhone 7 Plus"],
+        "confidence": 0.97
+      },
+      {
+        "signature": "SEP Panic",
+        "causes": [
+          "Secure Enclave corruption",
+          "Face ID failure",
+          "NAND swap mismatch"
+        ],
+        "confidence": 0.93
+      },
+      {
+        "signature": "Missing sensor",
+        "causes": [
+          "Front flex issue",
+          "Dock flex issue",
+          "Camera module issue",
+          "Sensor line cut"
+        ],
+        "confidence": 0.9
+      },
+      {
+        "signature": "thermalmonitord missing mic2",
+        "causes": [
+          "Power button / flash sensor flex (repair community correlation)",
+          "Top or audio-related flex connector damage",
+          "Thermalmonitord as secondary watchdog (not always real overheating)",
+          "Codec / MIC2 PCB path after known-good flex ruled out"
+        ],
+        "models": ["iPhone 11", "iPhone 11 Pro", "iPhone 11 Pro Max"],
+        "confidence": 0.88
+      }
+    ],
+    "model_specific_failures": {
+      "iPhone 6": ["Touch IC", "Tristar", "NAND bootloop"],
+      "iPhone 7": ["Audio IC", "Baseband", "Charge IC"],
+      "iPhone X": [
+        "Face ID flex",
+        "Sandwich board separation",
+        "OLED related kernel panic"
+      ],
+      "iPhone 11": [
+        "thermalmonitord + Missing sensor mic2 flex/connector paths",
+        "Power-side / flash-adjacent flex correlations (repair reports)",
+        "Battery thermal TG/PRS when explicitly missing in panic",
+        "Camera-related sensor lines",
+        "Baseband instability when log shows baseband"
+      ],
+      "iPhone 12": [
+        "Wireless charging flex",
+        "Interposer separation",
+        "Display panic"
+      ],
+      "iPhone 13": [
+        "Flex charging sensor chain",
+        "ANS2 storage panic",
+        "Camera initialization failure"
+      ],
+      "iPhone 14": [
+        "Thermal chain panic",
+        "PMIC instability",
+        "Sensor communication failure"
+      ],
+      "iPhone 15": [
+        "USB-C controller issue",
+        "Power subsystem panic",
+        "Thermal communication"
+      ],
+      "iPhone 16": [
+        "AI power management instability",
+        "USB-C PMU",
+        "Thermal watchdog"
+      ],
+      "iPhone 17": [
+        "Advanced thermal management",
+        "Integrated modem panic",
+        "Next-gen PMIC instability"
+      ]
+    },
+    "important_fields_to_parse": [
+      "panicString",
+      "bug_type",
+      "incident",
+      "product",
+      "kernel",
+      "socId",
+      "uptime",
+      "panicFlags",
+      "build",
+      "os_version"
+    ],
+    "bug_type_mapping": {
+      "109": "kernel panic",
+      "134": "baseband panic",
+      "210": "watchdog timeout",
+      "211": "thermal issue",
+      "288": "userspace reset"
+    },
+    "recommended_regex": [
+      "userspace watchdog timeout",
+      "AOP PANIC",
+      "thermalmonitord",
+      "missing sensor",
+      "Baseband Panic",
+      "ANS2 Recoverable Panic",
+      "SMC PANIC",
+      "SEP Panic",
+      "mic2 interrupt watchdog"
+    ],
+    "ai_output_format": {
+      "cause": "Audio IC",
+      "confidence": 0.91,
+      "repair_type": "microsoldering",
+      "priority": "high"
+    }
+  }
+}

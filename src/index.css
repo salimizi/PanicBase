@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+@plugin 'daisyui' {
+  themes:
+    night --default,
+    dark --prefersdark;
+}
+
+@theme {
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full overflow-hidden antialiased;
+  }
+
+  body {
+    margin: 0;
+    min-height: 0;
+    background:
+      radial-gradient(ellipse 78% 52% at 50% 22%, rgba(77, 163, 255, 0.28), transparent 58%),
+      radial-gradient(ellipse 60% 48% at 50% 58%, rgba(92, 228, 180, 0.11), transparent 52%),
+      linear-gradient(180deg, #0a1628 0%, #05080f 42%, #04060c 100%);
+  }
+}

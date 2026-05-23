@@ -1,0 +1,111 @@
+PanicBase — Proprietary Software License
+=========================================
+
+Copyright (c) 2026 PanicBase. All rights reserved.
+
+1. Grant of Use
+---------------
+This license grants the End User a personal, non-exclusive, non-transferable,
+revocable right to install and use the PanicBase application binary on
+Windows-based personal or business computers under the End User's lawful
+control, solely for the End User's internal diagnostic and repair operations
+on Apple iPhone devices that the End User legitimately owns or has been
+explicitly authorized to service.
+
+2. Restrictions
+---------------
+Without prior written authorization from PanicBase, the End User shall NOT:
+
+  (a) copy, distribute, sub-license, sell, rent, lease, lend, or otherwise
+      transfer the application or any portion thereof to any third party;
+
+  (b) reverse engineer, decompile, disassemble, derive source code from,
+      decrypt, or otherwise attempt to extract the proprietary knowledge
+      base, signatures, heuristics, encrypted assets, or any other internal
+      data structures of the application;
+
+  (c) modify, adapt, translate, or create derivative works based on the
+      application;
+
+  (d) remove, alter, or obscure any proprietary notices, trademarks, or
+      copyright statements contained in or displayed by the application;
+
+  (e) use the application to service devices belonging to third parties as
+      part of a commercial repair business, unless under a separate written
+      commercial agreement with PanicBase;
+
+  (f) use the application in any manner that violates applicable Apple Inc.
+      terms of service, end-user license agreements, or applicable laws.
+
+3. Data Handling
+-----------------
+PanicBase processes panic logs and device data locally on the End User's
+machine. The application does not transmit panic logs, IMEI, UDID, serial
+numbers, Apple ID, photographs, or any user-identifying data to PanicBase
+servers or any third-party server. Personally identifying markers are
+redacted before local storage. All persisted records are encrypted at rest
+using ChaCha20-Poly1305 with a per-machine random key held in the operating
+system credential store.
+
+4. iCloud and Apple Services
+-----------------------------
+The application may connect to Apple Inc. servers ("iCloud") solely on
+behalf of the End User and only using credentials the End User explicitly
+provides through the embedded Apple authentication web view. PanicBase does
+not store, log, or transmit Apple ID credentials. Session cookies remain
+within the operating system web view cookie store and may be cleared at
+any time by the End User via the in-app sign-out action.
+
+5. Disclaimer of Warranty
+--------------------------
+THE APPLICATION IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+PANICBASE DOES NOT WARRANT THAT THE APPLICATION WILL BE ERROR-FREE OR THAT
+ITS DIAGNOSTIC SUGGESTIONS WILL CORRECTLY IDENTIFY THE ROOT CAUSE OF ANY
+DEVICE FAILURE. THE END USER ASSUMES FULL RESPONSIBILITY FOR ANY REPAIR
+DECISIONS MADE ON THE BASIS OF THE APPLICATION'S OUTPUT.
+
+6. Limitation of Liability
+---------------------------
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, PANICBASE SHALL NOT BE LIABLE FOR
+ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES,
+INCLUDING WITHOUT LIMITATION LOSS OF PROFITS, DATA, USE, OR GOODWILL, OR
+DAMAGE TO ANY DEVICE, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+INABILITY TO USE THE APPLICATION.
+
+7. Termination
+---------------
+This license is effective until terminated. The End User's rights under
+this license will terminate automatically without notice if the End User
+fails to comply with any provision hereof. Upon termination, the End User
+shall cease all use of the application and destroy all copies in the End
+User's possession or control.
+
+8. Governing Law
+-----------------
+This license shall be governed by the laws of France, without regard to
+its conflict of law principles.
+
+9. Third-Party Components
+--------------------------
+The PanicBase application is distributed alongside libimobiledevice, an
+open-source library used to communicate with Apple devices over USB.
+libimobiledevice is distributed under its own LGPL-2.1+ license and is
+not modified by PanicBase. The libimobiledevice source code and license
+are available at https://libimobiledevice.org.
+
+The application also incorporates Rust crates and JavaScript libraries
+distributed under their respective open-source licenses (MIT, Apache-2.0,
+BSD, ISC). A list of third-party components and their licenses is available
+on request from the contact address below.
+
+10. Contact
+------------
+For licensing questions, commercial use authorization, or security
+disclosures, please open an issue or pull request on the PanicBase GitHub
+repository:
+
+  https://github.com/salimizi/PanicBase
+
+— End of License —

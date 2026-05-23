@@ -1,0 +1,75 @@
+# ─── Secrets & local config ──────────────────────────────────────────────────
+.env
+.env.local
+.env.example
+.env.*.local
+*.secret
+*.pem
+*.key
+
+# ─── Build artefacts ─────────────────────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+build/
+out/
+src-tauri/target/
+src-tauri/gen/schemas/
+src-tauri/WixTools/
+
+# ─── IDE & OS ────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Logs & diagnostics ──────────────────────────────────────────────────────
+*.log
+tauri.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+crash.dump
+check_out.txt
+
+# ─── Backups & temp ──────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+*~
+
+# ─── PanicBase internals (proprietary content not for public repo) ───────────
+src/
+src-tauri/
+public/
+scripts/
+ios-companion/
+export-claude/
+_claude_patch/
+.claude/
+.cargo/
+package.json
+package-lock.json
+tsconfig.json
+vite.config.ts
+vite.obfuscation.ts
+index.html
+
+# ─── Internal notes ──────────────────────────────────────────────────────────
+PANICBASE_DANGEROUS_MODE.md
+PANICBASE_INTERNET_CASES_ADDED.md
+PANICBASE_PRO_NOTES.md
+NOTES_*.md
+TODO_*.md
+
+# ─── Git work files ──────────────────────────────────────────────────────────
+git_files.tmp.txt
+*.tmp.txt

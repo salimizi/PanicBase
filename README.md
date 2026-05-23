@@ -30,15 +30,35 @@ PanicBase lit les panic logs d'un iPhone (via USB ou import de fichier `.ips` / 
 
 Télécharger le dernier installeur depuis la page **[Releases](../../releases)** :
 
-- `PanicBase_x64-setup.exe` — installeur NSIS (recommandé)
-- `PanicBase_x64_en-US.msi` — package MSI
+- `PanicBase_x64-setup.exe` — installeur NSIS (recommandé, ~8 MB)
+- `PanicBase_x64_en-US.msi` — package MSI (~11 MB)
+- `SHA256SUMS` — empreintes pour vérifier l'intégrité du téléchargement
 
 **Système requis :** Windows 10 / 11 (64-bit)
 
 Pour la détection USB iPhone, Apple Mobile Device Support doit être installé (inclus avec iTunes ou l'application Apple Devices du Microsoft Store).
 
+### Vérifier l'intégrité
+
+Sous PowerShell :
+
+```powershell
+Get-FileHash .\PanicBase_0.2.0_x64-setup.exe -Algorithm SHA256
+```
+
+Comparer l'empreinte affichée avec celle du fichier `SHA256SUMS` de la release.
+
+---
+
+## Sécurité
+
+PanicBase traite toutes les données **localement**, sans télémétrie ni serveur tiers. Voir [SECURITY.md](SECURITY.md) pour le détail du modèle de sécurité (chiffrement local, anonymisation des panic logs, isolation WebView iCloud).
+
+Signaler une vulnérabilité : ouvrir une issue avec le tag `security` ou contacter le mainteneur en direct.
+
 ---
 
 ## Licence
 
-Tous droits réservés — © 2026 PanicBase. Redistribution et usage commercial interdits sans autorisation écrite.
+Tous droits réservés — © 2026 PanicBase. Voir [LICENSE](LICENSE).
+Redistribution et usage commercial interdits sans autorisation écrite.

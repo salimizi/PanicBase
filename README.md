@@ -41,4 +41,4 @@ Pour la détection USB iPhone, Apple Mobile Device Support doit être installé 
 
 ## Licence
 
-Tous droits réservés — © 2025 PanicBase. Redistribution et usage commercial interdits sans autorisation écrite.
+Tous droits réservés — © 2026 PanicBase. Redistribution et usage commercial interdits sans autorisation écrite.

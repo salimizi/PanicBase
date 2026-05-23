@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Default webview permissions (open links in system browser / mail client, open iCloud child window).","local":true,"windows":["main","icloud"],"permissions":["core:default","shell:default","core:webview:allow-create-webview-window","core:window:allow-set-focus","core:window:allow-unminimize"]}}

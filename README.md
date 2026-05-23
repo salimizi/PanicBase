@@ -17,7 +17,8 @@ PanicBase lit les panic logs d'un iPhone (via USB ou import de fichier `.ips` / 
 - **Extraction directe** — récupère les panic logs depuis l'iPhone connecté en USB
 - **Import de fichiers** — glisser-déposer ou sélection de fichiers `.ips` / `.panic`
 - **Transfert de galerie** — parcourir, prévisualiser et exporter photos/vidéos depuis l'iPhone en USB
-- **Export de contacts** — export au format `.vcf`
+- **Infos appareil** — lecture des informations complètes du téléphone en mode normal
+- **Mode recovery** — récupération du numéro de série en mode recovery
 - **iCloud Photos** — parcourir et télécharger la photothèque iCloud
 - **Base de données locale chiffrée** — toutes les données stockées sont chiffrées
 - **Anonymisation** — IMEI, UDID, Numéro de série retirés avant stockage

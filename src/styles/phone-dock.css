@@ -34,58 +34,537 @@
   border-radius: 1px 1px 3px 3px;
   margin-top: -1px;
 }
-.dock-phone {
+/* Cadre : daisyUI .mockup-phone + classe .dock-phone pour les animations existantes */
+.dock-mockup-compact {
   width: 64px;
-  height: 108px;
-  background: linear-gradient(145deg, #2e3d52, #101820);
-  border-radius: 10px;
-  padding: 4px;
-  border: 1px solid rgba(120, 160, 210, 0.28);
-  position: relative;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
 }
-.phone-screen {
+
+/*
+ * DaisyUI fixe les rayons (~65 px / ~54 px) pour un gabarit max 462 px.
+ * À notre petite largeur ça fait une « pilule » ; les iPhone gardent ~14–12 %
+ * du bord cadre pour le verre → on proportionalise tout sur --pb-phone-w.
+ */
+.dock-mockup-compact .mockup-phone.dock-phone {
+  --pb-phone-w: 62px;
+  width: var(--pb-phone-w);
+  max-width: none;
+  padding: max(4px, calc(var(--pb-phone-w) * 0.026));
+  border-width: clamp(3px, calc(var(--pb-phone-w) * 0.016), 4px);
+  border-radius: calc(var(--pb-phone-w) * 0.141) !important;
+}
+
+.dock-mockup-compact .mockup-phone.dock-phone .mockup-phone-display {
+  border-radius: calc(var(--pb-phone-w) * 0.117) !important;
+}
+
+.dock-mockup-compact .mockup-phone.dock-phone .mockup-phone-camera {
+  border-radius: 9999px !important;
+}
+
+.phone-dock--solo .mockup-phone.dock-phone,
+.dock-mockup-compact .mockup-phone.dock-phone,
+.phone-dock--solo .mockup-phone.dock-phone .mockup-phone-display,
+.dock-mockup-compact .mockup-phone.dock-phone .mockup-phone-display {
+  corner-shape: round;
+}
+
+.phone-display-stack {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Mode confiance : fond moins envahissant pour lire le message */
+.phone-display-stack--trust {
+  background: #0a0e12;
+}
+
+.mockup-phone-wallpaper {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
-  border-radius: 7px;
-  background: radial-gradient(circle at 50% 20%, rgba(80, 140, 230, 0.25), #050a10 72%);
+  object-fit: cover;
+  object-position: center 42%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mockup-phone-wallpaper--trust {
+  transform: scale(0.62);
+  opacity: 0.28;
+  filter: blur(2px) saturate(0.55);
+  transform-origin: center center;
+}
+
+.mockup-phone-wallpaper:not(.mockup-phone-wallpaper--trust) {
+  transition: opacity 0.35s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mockup-phone-wallpaper--trust {
+    transform: scale(0.72);
+    filter: blur(1px) saturate(0.7);
+    opacity: 0.32;
+  }
+}
+
+.mockup-display-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0.95;
+  background:
+    radial-gradient(ellipse 95% 80% at 18% 12%, rgba(56, 189, 248, 0.55), transparent 52%),
+    radial-gradient(ellipse 90% 75% at 92% 18%, rgba(167, 139, 250, 0.42), transparent 48%),
+    radial-gradient(ellipse 120% 90% at 50% 108%, rgba(52, 211, 153, 0.28), transparent 55%),
+    linear-gradient(165deg, #040a14 0%, #050d18 45%, #020408 100%);
+  background-size: 140% 140%, 135% 135%, 160% 160%, 100% 100%;
+  animation: aurora-float 14s ease-in-out infinite;
+}
+
+.mockup-display-aurora--plug {
+  animation-duration: 11s;
+  filter: saturate(1.15);
+}
+
+.mockup-display-aurora--trust {
+  background:
+    radial-gradient(ellipse 100% 85% at 50% -5%, rgba(251, 191, 36, 0.45), transparent 45%),
+    radial-gradient(ellipse 90% 80% at 8% 60%, rgba(248, 113, 113, 0.16), transparent 50%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.52) 0%, rgba(0, 0, 0, 0.35) 100%),
+    linear-gradient(195deg, #120805 0%, #1c0f0c 40%, #080504 100%);
+  filter: saturate(1.05);
+  opacity: 0.92;
+}
+
+.mockup-display-aurora--connected {
+  background:
+    radial-gradient(ellipse 110% 90% at 50% -10%, rgba(52, 211, 153, 0.45), transparent 48%),
+    radial-gradient(ellipse 85% 70% at 15% 70%, rgba(45, 212, 191, 0.25), transparent 52%),
+    linear-gradient(168deg, #03120c 0%, #071a12 52%, #020806 100%);
+  filter: saturate(1.12);
+}
+
+/* Mode recovery : même fond photo qu’en connecté, surcouche chaude + libellé sur l’écran. */
+.mockup-display-aurora--recovery {
+  background:
+    radial-gradient(ellipse 110% 92% at 50% -8%, rgba(255, 180, 100, 0.5), transparent 46%),
+    radial-gradient(ellipse 88% 72% at 12% 72%, rgba(255, 120, 60, 0.22), transparent 52%),
+    linear-gradient(168deg, #1a0c06 0%, #2a1208 48%, #0c0604 100%);
+  filter: saturate(1.08);
+}
+
+@keyframes neon-frame-recovery {
+  0% {
+    border-color: rgba(251, 146, 60, 0.62) !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 107, 53, 0.16),
+      0 20px 50px rgba(0, 0, 0, 0.48),
+      0 0 46px rgba(255, 140, 66, 0.22);
+  }
+  100% {
+    border-color: rgba(249, 115, 22, 0.92) !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 87, 34, 0.24),
+      0 28px 64px rgba(0, 0, 0, 0.55),
+      0 0 72px rgba(255, 120, 72, 0.34);
+  }
+}
+
+@keyframes phone-glow-recovery {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 120, 72, 0);
+  }
+  100% {
+    box-shadow: 0 0 18px rgba(255, 120, 72, 0.32);
+    border-color: rgba(255, 149, 92, 0.48);
+  }
+}
+
+.connected-specs--recovery {
+  gap: clamp(6px, 2vmin, 11px);
+}
+
+.connected-apple-halo--recovery {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 180, 120, 0.28) 42%,
+    transparent 74%
+  );
+}
+
+.apple-mark-hub--recovery {
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 22px rgba(255, 140, 66, 0.32));
+  animation:
+    hub-apple-float 4.2s ease-in-out infinite alternate,
+    hub-apple-glitz-recovery 5.5s ease-in-out infinite;
+}
+
+@keyframes hub-apple-glitz-recovery {
+  0%,
+  100% {
+    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 18px rgba(255, 140, 66, 0.22));
+    color: rgba(255, 253, 250, 0.95);
+  }
+  42% {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 28px rgba(255, 200, 150, 0.42));
+    color: rgba(255, 255, 255, 1);
+  }
+}
+
+.spec-main.spec-main--recovery {
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 22px rgba(255, 140, 66, 0.12);
+  animation: hub-text-rise 1.05s cubic-bezier(0.2, 0.82, 0.1, 1) backwards 0.12s;
+}
+
+.spec-ios.spec-ios--recovery {
+  color: rgba(255, 228, 206, 0.95);
+  letter-spacing: 0.28em;
+  animation: hub-text-rise 1.06s cubic-bezier(0.2, 0.82, 0.1, 1) backwards 0.32s;
+}
+
+.phone-frame-shimmer-overlay--recovery {
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 34%,
+    rgba(255, 248, 235, 0.42) 48%,
+    rgba(255, 220, 180, 0.55) 50%,
+    rgba(255, 160, 100, 0.28) 52%,
+    transparent 64%,
+    transparent 100%
+  );
+  mix-blend-mode: soft-light;
+}
+
+.phone-frame-sparkle--recovery {
+  background:
+    radial-gradient(circle at 74% 11%, rgba(255, 255, 255, 0.88) 0.12rem, transparent 0.42rem),
+    radial-gradient(circle at 82% 28%, rgba(255, 220, 180, 0.55) 0.1rem, transparent 0.38rem),
+    radial-gradient(circle at 71% 24%, rgba(255, 180, 120, 0.65) 0.11rem, transparent 0.4rem),
+    radial-gradient(circle at 90% 17%, rgba(255, 255, 255, 0.75) 0.09rem, transparent 0.38rem),
+    radial-gradient(circle at 76% 38%, rgba(255, 140, 80, 0.45) 0.1rem, transparent 0.36rem),
+    radial-gradient(circle at 85% 45%, rgba(255, 255, 255, 0.28) 0.06rem, transparent 0.22rem);
+}
+
+.mockup-display-aurora--muted {
+  opacity: 0.55;
+  animation: none;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(148, 163, 184, 0.12), #06080d 75%);
+}
+
+@keyframes aurora-float {
+  0%,
+  100% {
+    background-position:
+      0% 20%,
+      100% 0%,
+      50% 100%,
+      center;
+    transform: scale(1);
+  }
+  35% {
+    background-position:
+      100% 40%,
+      0% 30%,
+      80% 80%,
+      center;
+    transform: scale(1.03);
+  }
+  70% {
+    background-position:
+      30% 0%,
+      90% 60%,
+      20% 90%,
+      center;
+    transform: scale(1.01);
+  }
+}
+
+.phone-display-content {
   position: relative;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding-inline: clamp(6px, 12%, 16px);
+  padding-block: clamp(22px, 18%, 32px);
+}
+
+.phone-display-content--connected-hub {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  padding-inline: clamp(8px, 9%, 18px);
+  padding-block: clamp(20px, 11%, 40px);
+}
+
+/* Feuille « Faire confiance » — marges minimales pour tenir tout le bloc dans le verre */
+.phone-display-content--trust-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-inline: clamp(6px, 5.5%, 13px);
+  padding-block: clamp(6px, 4vmin, 16px);
+  box-sizing: border-box;
+}
+
+/* Alerte iOS compacte à la verticale (évite clipping sous overflow:hidden) */
+.ios-trust-sheet-ios {
+  width: 100%;
+  max-width: min(100%, 15.75rem);
+  border-radius: 11px;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.45);
+  background: linear-gradient(180deg, rgba(252, 252, 253, 0.99) 0%, rgba(229, 230, 234, 0.98) 100%);
+  color: #161618;
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, 0.38),
+    0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
+  animation: ios-trust-sheet-in 0.58s cubic-bezier(0.22, 0.98, 0.18, 1) backwards;
+  transform-origin: 50% 58%;
 }
-.phone-notch {
-  position: absolute;
-  top: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 22px;
-  height: 4px;
-  background: #0a121a;
-  border-radius: 0 0 4px 4px;
+
+.ios-trust-title {
+  margin: 0;
+  padding: 7px clamp(9px, 2.6vmin, 12px) 3px;
+  font-size: clamp(7.85px, 2.05vmin, 10.25px);
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -0.032em;
+  text-align: center;
+  color: #1c1c1e;
 }
-.phone-port-slot {
-  position: absolute;
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 18px;
-  height: 3px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 1px;
+
+.ios-trust-body {
+  margin: 0;
+  padding: 0 clamp(8px, 2.35vmin, 11px) 6px;
+  font-size: clamp(6.9px, 1.85vmin, 8.9px);
+  font-weight: 500;
+  line-height: 1.28;
+  letter-spacing: -0.015em;
+  text-align: center;
+  color: rgba(60, 60, 67, 0.98);
+}
+
+.ios-trust-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border-top: 0.55px solid rgba(60, 60, 67, 0.28);
+}
+
+.ios-trust-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 5px 4px;
+  margin: 0;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: clamp(6.55px, 1.78vmin, 8.5px);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  color: #0a84ff;
+  font-weight: 500;
+}
+
+.ios-trust-btn-decline {
+  border-right: 0.55px solid rgba(60, 60, 67, 0.28);
+  letter-spacing: -0.05em;
+  padding-inline: 2px;
+}
+
+.ios-trust-btn-accept {
+  font-weight: 700;
+  animation: ios-trust-accept-hint 2.4s ease-in-out infinite;
+}
+
+@keyframes ios-trust-accept-hint {
+  0%,
+  100% {
+    background-color: transparent;
+    opacity: 1;
+  }
+  45% {
+    background-color: rgba(10, 132, 255, 0.08);
+    opacity: 1;
+  }
+}
+
+@keyframes ios-trust-sheet-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-trust-sheet-ios {
+    animation: ios-trust-sheet-in-rm 0.35s ease-out forwards;
+  }
+
+  .ios-trust-btn-accept {
+    animation: none;
+  }
+
+  .trust-aura::before,
+  .trust-aura::after {
+    animation: none !important;
+  }
+
+  .trust-aura::before {
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .trust-aura::after {
+    opacity: 0 !important;
+  }
+}
+
+@keyframes ios-trust-sheet-in-rm {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mockup-tone-muted {
+  border-color: color-mix(in srgb, #ff8938 38%, rgb(71 85 105)) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 137, 56, 0.12),
+    0 16px 40px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Halo seulement : la bordure reste #ff8938 (classe Tailwind sur le mockup). */
+@keyframes neon-frame-shift {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 137, 56, 0.28),
+      0 22px 55px rgba(0, 0, 0, 0.5),
+      0 0 52px rgba(255, 137, 56, 0.28);
+  }
+  33% {
+    box-shadow:
+      0 0 0 1px rgba(167, 139, 250, 0.22),
+      0 26px 58px rgba(0, 0, 0, 0.52),
+      0 0 60px rgba(56, 189, 248, 0.22);
+  }
+  66% {
+    box-shadow:
+      0 0 0 1px rgba(45, 212, 191, 0.2),
+      0 22px 55px rgba(0, 0, 0, 0.5),
+      0 0 56px rgba(52, 211, 153, 0.2);
+  }
+}
+
+@keyframes neon-frame-amber {
+  0%,
+  100% {
+    border-color: rgba(251, 191, 36, 0.55) !important;
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.12),
+      0 22px 55px rgba(0, 0, 0, 0.5),
+      0 0 48px rgba(251, 191, 36, 0.2);
+  }
+  50% {
+    border-color: rgba(252, 211, 77, 0.88) !important;
+    box-shadow:
+      0 0 0 1px rgba(252, 211, 77, 0.22),
+      0 28px 64px rgba(0, 0, 0, 0.55),
+      0 0 72px rgba(252, 211, 77, 0.32);
+  }
+}
+
+@keyframes neon-frame-mint {
+  0% {
+    border-color: rgba(74, 222, 128, 0.6) !important;
+    box-shadow:
+      0 0 0 1px rgba(52, 211, 153, 0.14),
+      0 20px 50px rgba(0, 0, 0, 0.48),
+      0 0 44px rgba(52, 211, 153, 0.2);
+  }
+  100% {
+    border-color: rgba(16, 185, 129, 0.9) !important;
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.22),
+      0 28px 64px rgba(0, 0, 0, 0.55),
+      0 0 72px rgba(52, 211, 153, 0.32);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mockup-display-aurora,
+  .mockup-phone.dock-phone,
+  .mockup-phone-display {
+    animation: none !important;
+  }
+
+  .phone-dock--solo .mockup-phone.dock-phone {
+    animation: none !important;
+  }
+
+  .phone-frame-shimmer-overlay,
+  .phone-frame-sparkle {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    opacity: 0.5;
+  }
+
+  .hero-phone-connected-orbit--burst::before {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    opacity: 0 !important;
+  }
+
+  .connected-reveal-model,
+  .connected-reveal-ios {
+    animation: ios-text-reveal 0.3s ease-out forwards;
+    opacity: 1 !important;
+  }
 }
 .dock--plug .dock-cable-wrap {
-  animation: cable-insert 2.8s ease-in-out infinite alternate;
+  animation: none;
+  transform: translateY(2px);
 }
-.dock--plug .dock-phone {
-  animation: phone-tilt 2.8s ease-in-out infinite alternate;
+.dock--plug .mockup-phone.dock-phone {
+  animation: none;
 }
-.dock--trust .phone-screen {
-  animation: pulse-trust 1.9s ease-in-out infinite;
+.dock--trust .mockup-phone-display {
+  animation: none;
 }
-.dock--connected .dock-phone {
-  animation: phone-glow 2.6s ease-in-out infinite alternate;
+.dock--connected .mockup-phone.dock-phone {
+  animation: none;
 }
 .dock--connected .dock-cable-wrap {
+  transform: translateY(2px);
+}
+.dock--recovery .mockup-phone.dock-phone {
+  animation: none;
+}
+.dock--recovery .dock-cable-wrap {
   transform: translateY(2px);
 }
 @keyframes cable-insert {
@@ -278,27 +757,93 @@
   position: relative;
   padding: 20px 22px;
 }
+
+/* Halo silhouette iPhone + reflet traversant */
 .trust-aura::before {
   content: '';
   position: absolute;
-  inset: 4px 8px auto;
-  width: calc(100% - 44px);
-  height: calc(100% - 44px);
-  margin: auto;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 200, 120, 0.35);
-  animation: aura-pulse 2.2s ease-in-out infinite;
+  left: 50%;
+  top: 51%;
+  z-index: 0;
+  width: clamp(134px, 36vw, 164px);
+  aspect-ratio: 462 / 978;
+  border-radius: clamp(19px, 5.8vmin, 24px);
   pointer-events: none;
+  opacity: 0.88;
+  transform: translate(-50%, -50%) scale(0.98);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 28px rgba(14, 165, 233, 0.18),
+    0 0 56px rgba(52, 211, 153, 0.12),
+    0 0 88px rgba(99, 102, 241, 0.1);
+  animation: trust-aura-device-breathe 3.8s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
-@keyframes aura-pulse {
+
+.trust-aura::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 51%;
+  z-index: 0;
+  width: clamp(146px, 38vw, 176px);
+  aspect-ratio: 462 / 978;
+  border-radius: clamp(21px, 6.2vmin, 27px);
+  pointer-events: none;
+  opacity: 0.45;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(
+    120deg,
+    rgba(14, 165, 233, 0) 42%,
+    rgba(147, 197, 253, 0.42) 50%,
+    rgba(167, 139, 250, 0) 58%
+  );
+  background-size: 220% 100%;
+  mix-blend-mode: screen;
+  animation: trust-aura-sheen 3.6s ease-in-out infinite;
+}
+
+.trust-aura .hero-phone-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes trust-aura-device-breathe {
   0%,
   100% {
-    transform: scale(0.94);
-    opacity: 0.45;
+    opacity: 0.52;
+    filter: saturate(1) hue-rotate(0deg);
+    transform: translate(-50%, -50%) scale(0.98);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 0 28px rgba(14, 165, 233, 0.18),
+      0 0 56px rgba(52, 211, 153, 0.12),
+      0 0 88px rgba(99, 102, 241, 0.1);
   }
   50% {
-    transform: scale(1.05);
-    opacity: 0.95;
+    opacity: 0.94;
+    filter: saturate(1.08) hue-rotate(12deg);
+    transform: translate(-50%, -50%) scale(1.028);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.12),
+      0 0 36px rgba(14, 165, 233, 0.28),
+      0 0 68px rgba(52, 211, 153, 0.2),
+      0 0 102px rgba(129, 140, 248, 0.14);
+  }
+}
+
+@keyframes trust-aura-sheen {
+  0% {
+    background-position: 120% center;
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  40% {
+    opacity: 0.65;
+  }
+  100% {
+    background-position: -30% center;
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(1.02);
   }
 }
 
@@ -307,7 +852,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 152px;
+  min-height: 168px;
   padding: 14px 16px 10px;
 }
 .hero-phone-wrap::before {
@@ -337,7 +882,7 @@
   opacity: 0.4;
   filter: saturate(0.7);
 }
-.hero-phone-wrap--muted .dock-phone {
+.hero-phone-wrap--muted .mockup-phone.dock-phone {
   filter: saturate(0.85) brightness(0.9);
 }
 @keyframes hero-orb-glow {
@@ -356,29 +901,56 @@
   margin: 0 auto;
 }
 .phone-dock--hero.phone-dock--solo {
-  transform: scale(1.38);
+  transform: none;
   transform-origin: center center;
   margin-bottom: 0;
 }
-.phone-dock--solo .dock-phone {
-  animation: solo-phone-float 3.8s ease-in-out infinite alternate;
-  border-radius: 16px !important;
-  border: 1px solid rgba(140, 210, 255, 0.32) !important;
-  box-shadow:
-    0 0 0 1px rgba(92, 228, 180, 0.1),
-    0 22px 56px rgba(0, 0, 0, 0.48),
-    0 0 52px rgba(77, 163, 255, 0.2) !important;
+.phone-dock--solo .mockup-phone.dock-phone {
+  --pb-phone-w: clamp(118px, 31vw, 148px);
+  width: var(--pb-phone-w);
+  max-width: none;
+  padding: max(5px, calc(var(--pb-phone-w) * 0.028));
+  border-width: clamp(4px, calc(var(--pb-phone-w) * 0.013), 5px);
+  border-radius: calc(var(--pb-phone-w) * 0.141) !important;
+  /* animation: none supprimé — chaque état gère la sienne */
 }
-.dock--connected.phone-dock--solo .dock-phone {
+
+.phone-dock--solo .mockup-phone.dock-phone .mockup-phone-display {
+  border-radius: calc(var(--pb-phone-w) * 0.117) !important;
+}
+
+.phone-dock--solo .mockup-phone.dock-phone .mockup-phone-camera {
+  width: calc(var(--pb-phone-w) * 0.31);
+  max-width: 38%;
+  height: 4%;
+  margin-top: 3.25%;
+  border-radius: 9999px !important;
+}
+
+.dock--plug.phone-dock--solo .mockup-phone.mockup-tone-plug {
+  animation: none;
+}
+
+/* ── Connecté : flottement doux + bordure neon qui respire ── */
+.dock--connected.phone-dock--solo .mockup-phone.mockup-tone-connected {
   animation:
     solo-phone-float 3.8s ease-in-out infinite alternate,
-    solo-phone-glow 2.7s ease-in-out infinite alternate;
+    neon-frame-shift 7s ease-in-out infinite;
+  will-change: transform;
 }
-.dock--trust.phone-dock--solo .dock-phone {
+
+/* ── Recovery : flottement + bordure orange ── */
+.dock--recovery.phone-dock--solo .mockup-phone.mockup-tone-connected {
   animation:
-    solo-phone-float 3.8s ease-in-out infinite alternate,
-    pulse-trust 2s ease-in-out infinite;
+    solo-phone-float 4.2s ease-in-out infinite alternate,
+    neon-frame-recovery 3.5s ease-in-out infinite alternate;
+  will-change: transform;
 }
+
+.dock--trust.phone-dock--solo .mockup-phone.mockup-tone-trust {
+  animation: none;
+}
+
 @keyframes solo-phone-float {
   from {
     transform: translateY(4px);
@@ -402,6 +974,21 @@
   }
 }
 
+@keyframes solo-phone-glow-recovery {
+  from {
+    box-shadow:
+      0 0 0 1px rgba(255, 160, 100, 0.18),
+      0 22px 56px rgba(0, 0, 0, 0.48),
+      0 0 40px rgba(255, 140, 80, 0.18);
+  }
+  to {
+    box-shadow:
+      0 0 0 1px rgba(255, 140, 80, 0.36),
+      0 26px 60px rgba(0, 0, 0, 0.52),
+      0 0 64px rgba(255, 120, 60, 0.28);
+  }
+}
+
 .trust-pop--hero {
   position: absolute !important;
   inset: 16px 4px auto !important;
@@ -416,37 +1003,411 @@
   background: linear-gradient(90deg, transparent 0%, rgba(255, 200, 100, 0.9) 50%, transparent 100%);
 }
 
-.connected-specs {
+/* Reflets sur tout le bloc mockup lorsque l’USB est là + identité affichée */
+.phone-frame-shimmer-overlay,
+.phone-frame-sparkle {
+  grid-area: 1 / 1 / 1 / 1;
+  pointer-events: none;
+  border-radius: inherit;
+  justify-self: center;
+  align-self: center;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+}
+.phone-frame-shimmer-overlay {
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 36%,
+    rgba(255, 255, 255, 0.55) 48%,
+    rgba(252, 252, 252, 0.88) 50%,
+    rgba(165, 243, 252, 0.45) 52%,
+    transparent 62%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  mix-blend-mode: soft-light;
+  /* balayage lumineux toutes les 5 s */
+  animation: phone-shimmer-sweep 5s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite 0.9s;
+}
+
+.phone-frame-sparkle {
+  z-index: 6;
+  background:
+    radial-gradient(circle at 74% 11%, rgba(255, 255, 255, 0.9) 0.12rem, transparent 0.42rem),
+    radial-gradient(circle at 82% 28%, rgba(255, 255, 255, 0.65) 0.1rem, transparent 0.38rem),
+    radial-gradient(circle at 71% 24%, rgba(193, 244, 255, 0.75) 0.11rem, transparent 0.4rem),
+    radial-gradient(circle at 90% 17%, rgba(255, 255, 255, 0.85) 0.09rem, transparent 0.32rem),
+    radial-gradient(circle at 76% 38%, rgba(52, 211, 153, 0.55) 0.1rem, transparent 0.36rem),
+    radial-gradient(circle at 85% 45%, rgba(255, 255, 255, 0.35) 0.06rem, transparent 0.22rem);
+  /* scintillement permanent */
+  animation: phone-sparkle-twinkle 4.2s ease-in-out infinite;
+  opacity: 0.65;
+}
+
+@keyframes phone-shimmer-sweep {
+  0% {
+    background-position: 162% center;
+    opacity: 0.45;
+  }
+  52% {
+    background-position: -62% center;
+    opacity: 1;
+  }
+  72%,
+  100% {
+    background-position: -102% center;
+    opacity: 0.52;
+  }
+}
+
+@keyframes phone-sparkle-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    filter: saturate(1) brightness(0.92);
+    transform: rotate(-1deg);
+  }
+  40% {
+    opacity: 0.92;
+    filter: saturate(1.85) brightness(1.18);
+    transform: rotate(0.5deg) scale(1.02);
+  }
+  60% {
+    opacity: 0.55;
+    filter: saturate(1.35) brightness(1.06);
+    transform: rotate(-0.4deg);
+  }
+}
+
+.hero-phone-connected-orbit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hero-phone-connected-orbit .hero-phone-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* Anneau persistant intérieur qui respire (::after = pas de conflit avec --burst::before) */
+.hero-phone-connected-orbit::after {
+  content: '';
   position: absolute;
-  inset: 18px 4px auto;
+  inset: -22px -16px;
+  border-radius: 26px;
+  pointer-events: none;
+  z-index: 0;
+  border: 1.5px solid rgba(52, 211, 153, 0.28);
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.12), 0 0 48px rgba(34, 197, 94, 0.06);
+  animation: orbit-ring-breathe 3.6s ease-in-out infinite;
+}
+
+/* Burst one-shot à la connexion (::before utilisé uniquement pour le burst) */
+.hero-phone-connected-orbit--burst::before {
+  content: '';
+  position: absolute;
+  inset: -10px -14px -16px -14px;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 2px solid rgba(94, 234, 212, 0.45);
+  box-shadow:
+    0 0 20px rgba(52, 211, 153, 0.3),
+    0 0 48px rgba(34, 197, 94, 0.15);
+  animation: ios-connect-ring-out 1.25s cubic-bezier(0.12, 0.92, 0.24, 1) forwards;
+  z-index: 0;
+}
+
+@keyframes orbit-ring-breathe {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scale(1.035);
+    opacity: 0.85;
+    box-shadow: 0 0 28px rgba(52, 211, 153, 0.22), 0 0 56px rgba(34, 197, 94, 0.1);
+  }
+}
+@keyframes ios-connect-ring-out {
+  0% {
+    transform: scale(0.94);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.06);
+    opacity: 0;
+  }
+}
+
+.connected-reveal-model {
+  opacity: 0;
+  animation: ios-text-reveal 0.92s cubic-bezier(0.2, 0.85, 0.05, 1) forwards 0.1s;
+}
+.connected-reveal-ios {
+  opacity: 0;
+  animation: ios-text-reveal-ios 1.08s cubic-bezier(0.2, 0.85, 0.05, 1) forwards 0.35s;
+}
+
+/* Pulse continu sur le nom modèle après révélation */
+.connected-device-line {
+  animation: device-name-pulse 5s ease-in-out infinite 1.4s;
+}
+
+@keyframes device-name-pulse {
+  0%, 100% {
+    opacity: 1;
+    text-shadow: none;
+  }
+  48% {
+    opacity: 0.92;
+    text-shadow:
+      0 0 22px color-mix(in oklch, var(--color-primary) 55%, transparent),
+      0 0 44px color-mix(in oklch, var(--color-primary) 22%, transparent);
+  }
+}
+@keyframes ios-text-reveal {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(12px);
+    letter-spacing: 0.14em;
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+    letter-spacing: 0.01em;
+  }
+}
+@keyframes ios-text-reveal-ios {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.ios-version-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.28rem 0.65rem;
+  letter-spacing: 0.06em;
+  border-radius: 9999px;
+  background: rgba(13, 30, 40, 0.55);
+  border: 1px solid rgba(94, 234, 212, 0.32);
+  box-shadow:
+    0 0 24px rgba(45, 212, 191, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  color: rgb(226 246 239);
+  /* respiration du badge iOS après l'apparition */
+  animation: ios-pill-breathe 4.5s ease-in-out infinite 1.8s;
+}
+
+@keyframes ios-pill-breathe {
+  0%, 100% {
+    box-shadow: 0 0 24px rgba(45, 212, 191, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    border-color: rgba(94, 234, 212, 0.32);
+  }
+  50% {
+    box-shadow: 0 0 36px rgba(45, 212, 191, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    border-color: rgba(94, 234, 212, 0.62);
+  }
+}
+.connected-ios-brand {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.52em;
+  text-transform: uppercase;
+  opacity: 0.88;
+  color: rgba(153, 246, 228, 0.9);
+}
+.connected-ios-numbers {
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgb(237 251 246);
+}
+
+.connected-specs.connected-specs--hub {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  justify-content: center;
+  gap: clamp(8px, 2.6vmin, 14px);
+  padding: clamp(10px, 5.5%, 18px);
   text-align: center;
   pointer-events: none;
+  font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
 }
-.connected-specs .check-mini {
-  font-size: 16px;
-  line-height: 1;
-  margin-bottom: 2px;
+
+.connected-apple-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  animation: hub-apple-enter 1.05s cubic-bezier(0.28, 1.25, 0.2, 1) backwards;
 }
-.spec-main {
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 1.15;
-  color: #fff;
-  letter-spacing: -0.02em;
+
+.connected-apple-halo {
+  grid-area: 1 / 1;
+  width: clamp(46px, 26vmin, 68px);
+  height: clamp(46px, 26vmin, 68px);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(165, 250, 200, 0.22) 42%,
+    transparent 74%
+  );
+  filter: blur(11px);
+  opacity: 0.9;
+  animation: hub-halo-breathe 2.9s ease-in-out infinite;
+}
+
+.apple-mark-hub {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 1;
+  width: clamp(1.62rem, 19vmin, 2.08rem);
+  height: auto;
+  color: rgba(255, 255, 255, 0.96);
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 22px rgba(52, 211, 153, 0.28));
+  animation:
+    hub-apple-float 4.2s ease-in-out infinite alternate,
+    hub-apple-glitz 5.5s ease-in-out infinite;
+}
+
+@keyframes hub-apple-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.78);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes hub-halo-breathe {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.68;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes hub-apple-float {
+  from {
+    transform: translateY(2px);
+  }
+  to {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes hub-apple-glitz {
+  0%,
+  100% {
+    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 18px rgba(52, 211, 153, 0.2));
+    color: rgba(255, 255, 255, 0.92);
+  }
+  42% {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 30px rgba(167, 243, 208, 0.45));
+    color: rgba(255, 253, 250, 1);
+  }
+}
+
+.spec-main.spec-main--hub {
+  font-size: clamp(0.8125rem, 3.4vmin, 1.0725rem);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: 0.045em;
+  color: rgb(251 251 253);
   hyphens: auto;
   word-break: break-word;
-  max-height: 40px;
-  overflow: visible;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 2px;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 22px rgba(52, 211, 153, 0.09);
+  animation: hub-text-rise 1.05s cubic-bezier(0.2, 0.82, 0.1, 1) backwards 0.16s;
 }
-.spec-ios {
-  font-size: 9px;
-  font-weight: 800;
-  color: #9fe0ff;
-  letter-spacing: 0.01em;
+
+.spec-ios.spec-ios--hub {
+  font-size: clamp(0.55rem, 2.05vmin, 0.675rem);
+  font-weight: 600;
+  color: rgb(217 246 237);
+  letter-spacing: 0.52em;
+  text-transform: uppercase;
+  margin: 0;
+  animation: hub-text-rise 1.06s cubic-bezier(0.2, 0.82, 0.1, 1) backwards 0.42s;
+}
+
+@keyframes hub-text-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+    filter: blur(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apple-mark-hub,
+  .apple-mark-hub--recovery,
+  .connected-apple-halo,
+  .connected-apple-halo--recovery,
+  .connected-apple-slot,
+  .connected-apple-slot--recovery {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .spec-main.spec-main--hub,
+  .spec-ios.spec-ios--hub,
+  .spec-main.spec-main--recovery,
+  .spec-ios.spec-ios--recovery {
+    animation: hub-text-rise-rm 0.35s ease-out forwards !important;
+  }
+
+  .apple-mark-hub,
+  .apple-mark-hub--recovery {
+    transform: none !important;
+  }
+}
+
+@keyframes hub-text-rise-rm {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .orbit-inline.orbit-wrap {
@@ -457,3 +1418,80 @@
 .orbit-inline .orbit-core {
   inset: 15px;
 }
+
+/* Modern click invitation on the interactive iPhone mockup */
+.phone-dock--hero .mockup-phone.dock-phone[role='button'] {
+  position: relative;
+  transition:
+    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.24s ease,
+    box-shadow 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.phone-dock--hero .mockup-phone.dock-phone[role='button']::after {
+  content: '';
+  position: absolute;
+  inset: -18px;
+  z-index: -1;
+  border-radius: calc(var(--pb-phone-w) * 0.22);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 22%, transparent);
+  background:
+    linear-gradient(120deg, transparent 0 28%, rgba(255, 255, 255, 0.7) 43%, transparent 58%),
+    radial-gradient(ellipse 80% 34% at 50% 112%, color-mix(in oklch, var(--color-primary) 24%, transparent), transparent 72%),
+    radial-gradient(circle at 84% 18%, color-mix(in oklch, var(--color-info) 22%, transparent), transparent 24%);
+  background-size: 220% 100%, 100% 100%, 100% 100%;
+  background-position: 140% center, center, center;
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+  filter: blur(0.2px);
+  transition:
+    opacity 0.28s ease,
+    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    background-position 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.phone-dock--hero .mockup-phone.dock-phone[role='button']:hover,
+.phone-dock--hero .mockup-phone.dock-phone[role='button']:focus-visible {
+  /* Pause le flottement + élévation via transform direct */
+  animation-play-state: paused !important;
+  transform: translate3d(0, -7px, 0) scale(1.035) !important;
+  transition:
+    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.24s ease,
+    box-shadow 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: saturate(1.08) brightness(1.045);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--color-primary) 22%, transparent),
+    0 26px 70px rgba(14, 148, 140, 0.20),
+    0 10px 36px rgba(15, 23, 42, 0.16) !important;
+}
+
+.phone-dock--hero .mockup-phone.dock-phone[role='button']:hover::after,
+.phone-dock--hero .mockup-phone.dock-phone[role='button']:focus-visible::after {
+  opacity: 0.95;
+  transform: translateY(0) scale(1.025);
+  background-position: -40% center, center, center;
+}
+
+.phone-dock--hero .mockup-phone.dock-phone[role='button']:active {
+  transform: translate3d(0, -3px, 0) scale(1.012);
+}
+
+.hero-phone-connected-orbit:has(.mockup-phone.dock-phone[role='button']:hover)::before,
+.hero-phone-connected-orbit:has(.mockup-phone.dock-phone[role='button']:focus-visible)::before {
+  opacity: 0.9;
+  animation-duration: 1.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-dock--hero .mockup-phone.dock-phone[role='button'],
+  .phone-dock--hero .mockup-phone.dock-phone[role='button']::after {
+    transition: none;
+    animation: none !important;
+  }
+}
+
+/* Animations réduites uniquement pour prefers-reduced-motion (déjà géré plus haut).
+   Le bloc "Performance mode" a été supprimé — toutes les animations sont actives. */

@@ -15,6 +15,27 @@ export type RepairReference = {
 
 export const REPAIR_REFERENCE_INDEX: RepairReference[] = [
   {
+    id: 'panicbase-dev-reference-html',
+    titleFr: 'PanicBase — table SMC / thermal / product (HTML local)',
+    url: '/iphone_panic_reference_dev.html',
+    keywords: [
+      'sensor array',
+      'smc panic',
+      'thermalmonitord',
+      'missing sensor',
+      'mic1',
+      'mic2',
+      'prs0',
+      'socid',
+      'product',
+      'iphone14,',
+      'iphone15,',
+      'iphone17,',
+    ],
+    summaryFr:
+      'Référence navigateur livrée dans public/ — masques 13→16, mots-clés thermal, tableau product→SoC.',
+  },
+  {
     id: 'repair-wiki-panic-restarts',
     titleFr: 'Repair Wiki — panic-full & redémarrages (par modèle)',
     url: 'https://repair.wiki/w/How_to_Troubleshoot_And_Fix_iPhone_Random_Restarts_Using_Panic_Logs',
@@ -78,6 +99,40 @@ export const REPAIR_REFERENCE_INDEX: RepairReference[] = [
     summaryFr:
       'Cyclés courts : vérifier nappes & connecteurs reliés aux capteurs attendus avant de conclure batterie.',
     modelsHint: ['11', '12,1'],
+  },
+
+  {
+    id: 'case-prs0-dock-reddit-mobilerepair',
+    titleFr: 'Cas avéré — PRS0 / ThermalMonitorD → nappe charge',
+    url: 'https://www.reddit.com/r/mobilerepair/comments/1evl61i/thermalmonitord_panic_full_issue_iphone_restarts/',
+    keywords: ['prs0', 'thermalmonitord', 'dock', 'charging port', 'charge'],
+    summaryFr:
+      'Retour terrain : ThermalMonitorD + PRS0 renvoie très souvent vers le flex port de charge ; privilégier OEM/Premium car certaines nappes aftermarket gardent la panne.',
+  },
+  {
+    id: 'case-prs0-ifixit-answers',
+    titleFr: 'Cas avéré — reboot 3 minutes PRS0',
+    url: 'https://www.ifixit.com/Answers/View/651841/Restarts+every+3+minutes+because+of+thermalmonitord',
+    keywords: ['prs0', '3 minutes', 'thermalmonitord', 'missing sensor'],
+    summaryFr:
+      'Cas documenté : reboot environ toutes les 3 minutes avec Missing sensor(s): Prs0 ; la piste discutée est le flex Lightning / port de charge.',
+  },
+  {
+    id: 'case-vcc-mic-prs-flex',
+    titleFr: 'VCC Board Repairs — PRS0/MIC1 dock, MIC2 power',
+    url: 'https://vccboardrepairs.com/panic-log-list/',
+    keywords: ['prs0', 'mic1', 'mic2', 'thermalmonitord', 'missing sensor'],
+    summaryFr:
+      'Synthèse atelier : PRS0 et MIC1 pointent vers le flex de charge ; MIC2 pointe souvent vers le flex bouton power selon modèle.',
+  },
+  {
+    id: 'case-se2020-mic1-repairwiki',
+    titleFr: 'Repair Wiki — SE 2020 MIC1',
+    url: 'https://repair.wiki/w/How_To_Fix_an_iPhone_SE_2020_with_No_Touch_and/or_3_Min_Restart%2C_Mic1_Problem',
+    keywords: ['se 2020', 'iphone12,8', 'mic1', 'i2c1_ap_scl', 'i2c1_ap_sda'],
+    summaryFr:
+      'Sur SE 2020 Missing Sensors: mic1 : tester d’abord un flex charge connu bon puis mesurer les lignes I2C1_AP_SCL/SDA.',
+    modelsHint: ['SE 2020', '12,8'],
   },
   {
     id: 'ifixit-aop-faceid',

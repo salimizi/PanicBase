@@ -17,6 +17,28 @@ export type StructuredDiagnostic = {
   critical_lines: string[];
   /** Indices masques / extraction (export outil) */
   wiki_hints: string[];
+  /** Plan d’action priorisé pour technicien atelier */
+  action_plan?: string[];
+  /** Alertes pièges / risques de mauvais diagnostic */
+  danger_flags?: string[];
+  /** Séquence d’isolation rapide avant micro-soudure lourde */
+  isolation_sequence?: string[];
+  /** Pièces ou zones à préparer sur l’établi */
+  likely_parts?: string[];
+  /** Preuves courtes qui justifient le diagnostic */
+  evidence_markers?: string[];
+  /** Résumé atelier exploitable directement */
+  technician_summary?: string;
+  /** Pourquoi le score est fort/moyen/faible */
+  confidence_rationale?: string;
+  /** Test unique le plus rentable à faire maintenant */
+  next_best_test?: string;
+};
+
+export type PanicReferenceFocus = {
+  navSection: string;
+  confidence: number;
+  initialSearch: string;
 };
 
 export type AnalysisResult = {
@@ -30,4 +52,6 @@ export type AnalysisResult = {
   signature: string;
   signature_hash: string;
   structured_diagnostic: StructuredDiagnostic;
+  /** Calculé par le moteur Rust (`analyze_panic_log`). */
+  reference_focus?: PanicReferenceFocus;
 };

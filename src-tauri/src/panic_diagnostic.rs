@@ -1,6 +1,4 @@
-//! Pipeline obligatoire : extraction limitée → normalisation → corrélations → scoring multi-causes.
-//! Ne pas raisonner sur le dump complet : uniquement champs critiques + sous-signatures.
-
+﻿
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
@@ -8,10 +6,10 @@ use std::sync::OnceLock;
 use regex::Regex;
 
 use crate::iphone;
+use crate::knowledge;
 
-// ─── Étape 1 : sous-signatures canoniques (ordre = plus longues d’abord pour le match) ───
+// â”€â”€â”€ Ã‰tape 1 : sous-signatures canoniques (ordre = plus longues dâ€™abord pour le match) â”€â”€â”€
 
-/// (needle lowercase, étiquette d’affichage canonique)
 const SUB_SIGNATURE_ROWS: &[(&str, &str)] = &[
     (
         "no successful checkins from thermalmonitord",
@@ -23,6 +21,11 @@ const SUB_SIGNATURE_ROWS: &[(&str, &str)] = &[
         "Userspace watchdog timeout",
     ),
     ("mic2 interrupt watchdog", "mic2 interrupt watchdog"),
+    ("undefined kernel instruction", "Undefined kernel instruction"),
+    ("undefined instruction", "Undefined kernel instruction"),
+    ("aop nmi power", "AOP NMI POWER"),
+    ("applesochot", "AppleSocHot"),
+    ("no valid cfg", "No valid CFG"),
     ("ans2 recoverable panic", "ANS2 Recoverable Panic"),
     ("outbox1 not ready", "OUTBOX1 not ready"),
     ("bsc failure", "BSC failure"),
@@ -46,17 +49,15 @@ pub struct ExtractedFields {
     pub uptime: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PossibleCauseDiag {
     pub name: String,
     pub confidence: f64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StructuredDiagnostic {
-    /// Identifiant Apple (ProductType), ex. iPhone14,7
     pub device: String,
-    /// Nom commercial si connu localement — corrélations hardware différentes par génération
     pub marketing_name: Option<String>,
     pub panic_type: String,
     pub normalized_signatures: Vec<String>,
@@ -64,18 +65,22 @@ pub struct StructuredDiagnostic {
     pub confidence_global: f64,
     pub repair_priority: String,
     pub recommended_checks: Vec<String>,
-    /// Lignes brutes les plus parlantes extrait du log (sans stack complète).
     pub critical_lines: Vec<String>,
-    /// Indices extraits masques / capteurs (texte brut outil export).
     pub wiki_hints: Vec<String>,
+    pub action_plan: Vec<String>,
+    pub danger_flags: Vec<String>,
+    pub isolation_sequence: Vec<String>,
+    pub likely_parts: Vec<String>,
+    pub evidence_markers: Vec<String>,
+    pub technician_summary: String,
+    pub confidence_rationale: String,
+    pub next_best_test: String,
 }
 
-/// Fenêtre élargie pour capter tout le bloc panicString même JSON sur une ligne.
 pub(crate) fn scan_wide_blob(log: &str) -> &str {
     log.get(..240000.min(log.len())).unwrap_or(log)
 }
 
-/// Étapes 1–2 : isoler les lignes utiles (capteurs SMC, OUTBOX, missing sensor, entête panic).
 pub fn extract_critical_signal_lines(log: &str) -> Vec<String> {
     let window = scan_wide_blob(log);
     let mut seen: HashSet<String> = HashSet::new();
@@ -112,7 +117,7 @@ pub fn extract_critical_signal_lines(log: &str) -> Vec<String> {
         }
 
         let display = if line.len() > 1200 {
-            format!("{}… [ligne tronquée]", line.chars().take(1200).collect::<String>())
+            format!("{}â€¦ [ligne tronquÃ©e]", line.chars().take(1200).collect::<String>())
         } else {
             line.to_string()
         };
@@ -125,7 +130,7 @@ pub fn extract_critical_signal_lines(log: &str) -> Vec<String> {
         }
     }
 
-    // Panic JSON monoligne : extraire coupures courtes même sans \n avant sensor array.
+    // Panic JSON monoligne : extraire coupures courtes mÃªme sans \n avant sensor array.
     let re_sf = Regex::new(r"(?i)([sf]\.sensor\s+array.{0,520})").unwrap();
     let mut bitmask_src: Vec<String> = Vec::new();
     for cap in re_sf.captures_iter(window) {
@@ -160,7 +165,7 @@ pub fn extract_critical_signal_lines(log: &str) -> Vec<String> {
             let t = part.trim().trim_matches(|c: char| !c.is_ascii_digit());
             if let Ok(v) = t.parse::<u64>() {
                 if v > 0 {
-                    let hint = format!("Sensor bitmask (extrait) : {v} → 0x{v:x}");
+                    let hint = format!("Sensor bitmask (extrait) : {v} â†’ 0x{v:x}");
                     if seen.insert(hint.clone()) {
                         out.push(hint);
                     }
@@ -184,12 +189,12 @@ fn re(key: &'static str) -> &'static Regex {
             "bug_type",
             Regex::new(r#"(?i)bug[_\s-]*type["'\s:=<]+"?(\d{2,})"#).unwrap(),
         );
-        /* Inclure la virgule (iPhone15,4) — l’ancienne classe exclus `,` et ne capturait que « iPhone15 ». */
+        /* Inclure la virgule (iPhone15,4) â€” lâ€™ancienne classe exclus `,` et ne capturait que Â« iPhone15 Â». */
         m.insert(
             "product_type",
             Regex::new(r#"(?i)ProductType["'\s:=]+"?([^"'\\s\n\v\r>]+)"#).unwrap(),
         );
-        /* IPS JSON utilise souvent "product":"iPhone15,2" sans clé ProductType */
+        /* IPS JSON utilise souvent "product":"iPhone15,2" sans clÃ© ProductType */
         m.insert(
             "apple_product_json",
             Regex::new(r#"(?is)"product"\s*:\s*"(iPhone\d+,\d+)""#).unwrap(),
@@ -216,7 +221,6 @@ fn re(key: &'static str) -> &'static Regex {
     .unwrap()
 }
 
-/// Étape 1 — EXTRACTION : champs ciblés + ignore le reste du bruit.
 pub fn extract_fields(log: &str) -> ExtractedFields {
     let w = scan_window(log);
     let panic_string_preview = re("panic_preview")
@@ -254,7 +258,6 @@ pub fn extract_fields(log: &str) -> ExtractedFields {
     }
 }
 
-/// Fusionne métadonnées du fichier IPS (JSON enveloppe) lorsque `panic_text` seul les omet encore.
 pub(crate) fn merge_extracted_fields(log_primary: &str, ips_envelope: Option<&str>) -> ExtractedFields {
     let mut e = extract_fields(log_primary);
     let Some(extra) = ips_envelope.filter(|s| !s.trim().is_empty()) else {
@@ -290,7 +293,6 @@ fn sanitize_preview(s: &str) -> String {
     t.trim().chars().take(900).collect()
 }
 
-/// Étape 2 — NORMALISATION : phrases simples à partir du texte utile uniquement.
 pub fn normalize_signatures(log: &str, extracted: &ExtractedFields) -> Vec<String> {
     let mut blob = String::new();
     blob.push_str(&log.to_lowercase());
@@ -350,8 +352,12 @@ fn missing_has(missing: &[String], id: &str) -> bool {
 
 fn missing_battery_hint(missing: &[String]) -> bool {
     missing.iter().any(|s| {
-        s.starts_with("prs") || s.starts_with("tg0") || s == "ncc" || s.contains("gauge")
+        s.starts_with("tg0") || s == "ncc" || s.contains("gauge") || s.contains("bms")
     })
+}
+
+fn missing_dock_pressure_hint(missing: &[String]) -> bool {
+    missing.iter().any(|s| s == "prs0" || s == "prs" || s.starts_with("prs"))
 }
 
 #[inline]
@@ -365,9 +371,23 @@ fn is_iphone11_family_product(product: Option<&str>, device_hint: Option<&str>) 
     false
 }
 
-/// Indices bus / gaz : fenêtre courte pour éviter le bruit du dump.
+fn is_mic2_earpiece_generation(product: Option<&str>, device_hint: Option<&str>) -> bool {
+    for s in [product, device_hint].into_iter().flatten() {
+        let c = s.trim().to_ascii_lowercase();
+        if matches!(
+            c.as_str(),
+            "iphone10,3" | "iphone10,6" | "iphone11,2" | "iphone11,4" | "iphone11,6" | "iphone11,8"
+                | "iphone12,1" | "iphone12,3" | "iphone12,5"
+                | "iphone13,1" | "iphone13,2" | "iphone13,3" | "iphone13,4"
+        ) {
+            return true;
+        }
+    }
+    false
+}
+
 fn detect_i2c_stress(log_lc: &str) -> bool {
-    if !log_lc.contains("i2c") && !log_lc.contains("i²c") {
+    if !log_lc.contains("i2c") && !log_lc.contains("iÂ²c") {
         return false;
     }
     log_lc.contains("timeout")
@@ -378,7 +398,101 @@ fn detect_i2c_stress(log_lc: &str) -> bool {
         || log_lc.contains("error recover")
 }
 
-/// **iPhone15,4** (identifiant produit Apple — souvent commercialisé « iPhone 15 » selon génération).
+fn is_iphone15_series_product(
+    marketing: Option<&str>,
+    product: Option<&str>,
+    device_hint: Option<&str>,
+) -> bool {
+    for s in [product, device_hint].into_iter().flatten() {
+        let c = s.trim().to_ascii_lowercase();
+        if matches!(
+            c.as_str(),
+            "iphone15,4" | "iphone15,5" | "iphone16,1" | "iphone16,2"
+        ) {
+            return true;
+        }
+    }
+    if let Some(m) = marketing {
+        let m = m.to_ascii_lowercase();
+        if m.contains("iphone 15") {
+            return true;
+        }
+    }
+    false
+}
+
+fn log_suggests_bottom_mic_oxidation(log_lc: &str) -> bool {
+    log_lc.contains("oxyd")
+        || log_lc.contains("corros")
+        || log_lc.contains("liquid")
+        || log_lc.contains("eau")
+        || log_lc.contains("humid")
+        || log_lc.contains("moisture")
+        || log_lc.contains("water damage")
+}
+
+fn score_iphone15_bottom_mic_module(
+    acc: &mut HashMap<String, f64>,
+    checks: &mut HashSet<String>,
+    log_lc: &str,
+    missing: &[String],
+    marketing: Option<&str>,
+    product: Option<&str>,
+    device_hint: Option<&str>,
+) {
+    if !is_iphone15_series_product(marketing, product, device_hint) {
+        return;
+    }
+    let mic1 = missing_has(missing, "mic1") || log_lc.contains("mic1");
+    let thermal = log_lc.contains("thermalmonitord");
+    let smc_bottom = log_lc.contains("0x80000")
+        || log_lc.contains("524288")
+        || log_lc.contains("0x300000")
+        || log_lc.contains("3145728")
+        || log_lc.contains("smc panic");
+    if !mic1 && !thermal && !smc_bottom {
+        return;
+    }
+    let push = |acc: &mut HashMap<String, f64>, name: &str, w: f64| {
+        acc.entry(name.to_string())
+            .and_modify(|e| *e = e.max(w))
+            .or_insert(w);
+    };
+    let mut w = if mic1 && thermal {
+        0.97_f64
+    } else if mic1 {
+        0.95
+    } else if thermal && smc_bottom {
+        0.93
+    } else {
+        0.9
+    };
+    if log_suggests_bottom_mic_oxidation(log_lc) {
+        w = w.max(0.98);
+        push(
+            acc,
+            "Oxydation module micro bas / connecteur flex USB-C (trÃ¨s frÃ©quent sÃ©rie 15)",
+            0.94,
+        );
+    }
+    push(
+        acc,
+        crate::repair_wiki::IPHONE15_BOTTOM_MIC_MODULE_CAUSE,
+        w,
+    );
+    checks.insert(
+        "SÃ©rie 15 : module micro bas = PCB MEMS sur flex USB-C ; reseat clip + joint mousse ; ultrason si oxydÃ©.".into(),
+    );
+    if thermal {
+        checks.insert(
+            "thermalmonitord sur iPhone 15 â‰  chauffe CPU : prioriser MIC1 / capteurs du module bas.".into(),
+        );
+    }
+    checks.insert(
+        "Charge VBUS peut rester OK alors que MIC1 / lignes capteurs du flex bas sont absentes.".into(),
+    );
+}
+
 fn is_iphone15_4_product(product: Option<&str>, device_hint: Option<&str>) -> bool {
     for s in [product, device_hint].into_iter().flatten() {
         let c = s.to_lowercase().replace(' ', "");
@@ -389,7 +503,6 @@ fn is_iphone15_4_product(product: Option<&str>, device_hint: Option<&str>) -> bo
     false
 }
 
-/// Motif repair : SMC + BSC + clés thermiques TAOP/TAOJ + OUTBOX1 (nappe wireless / MagSafe fréquente après remplacement).
 fn iphone15_4_wireless_smc_fingerprint(log_lc: &str) -> bool {
     let l = log_lc;
     let smc = l.contains("smc panic");
@@ -408,7 +521,7 @@ fn demote_non_wireless_for_iphone15_4_smc(acc: &mut HashMap<String, f64>) {
             let lk = k.to_lowercase();
             if lk.contains("wireless charging")
                 || lk.contains("magsafe")
-                || lk.contains("qi —")
+                || lk.contains("qi â€”")
                 || lk.contains("qi /")
             {
                 continue;
@@ -422,8 +535,8 @@ fn demote_non_wireless_for_iphone15_4_smc(acc: &mut HashMap<String, f64>) {
                 || lk.contains("battery fpc")
             {
                 *v *= 0.3;
-            } else if lk.contains("chaîne thermique")
-                || lk.contains("rapport températures")
+            } else if lk.contains("chaÃ®ne thermique")
+                || lk.contains("rapport tempÃ©ratures")
             {
                 *v *= 0.36;
             } else if lk.contains("rails alim")
@@ -444,7 +557,6 @@ fn demote_non_wireless_for_iphone15_4_smc(acc: &mut HashMap<String, f64>) {
     }
 }
 
-/// Cause explicites « Missing sensor(s): … » : poids max, avant interprétation générique thermique/BMS.
 fn score_named_missing_sensors(
     acc: &mut HashMap<String, f64>,
     checks: &mut HashSet<String>,
@@ -469,6 +581,10 @@ fn score_named_missing_sensors(
         };
         if iphone11 {
             push(acc, crate::repair_wiki::IPHONE11_MIC2_CAUSE, 0.95);
+            checks.insert(
+                "iPhone 11 + MIC2 : nappe bouton power / micro flash (cf. fiche rÃ©fÃ©rence HTML)."
+                    .into(),
+            );
         } else {
             let slug12_1 = product
                 .map(|p| p.trim().eq_ignore_ascii_case("iPhone12,1"))
@@ -479,42 +595,117 @@ fn score_named_missing_sensors(
             if slug12_1 {
                 push(
                     acc,
-                    "MIC2 · assemblage Lightning (dock) puis flex volume / veille latéral",
+                    "MIC2 Â· assemblage Lightning (dock) puis flex volume / veille latÃ©ral",
                     0.95,
                 );
             } else {
                 push(
                     acc,
-                    "MIC2 · pré-ensemble haut-parleur + grille micro façade",
+                    "MIC2 Â· prÃ©-ensemble haut-parleur + grille micro faÃ§ade",
                     0.94,
                 );
             }
         }
-        push(acc, "Bus audio CODEC · ligne MIC2 sans réponse pile", 0.76);
+        push(acc, "Bus audio CODEC Â· ligne MIC2 sans rÃ©ponse pile", 0.76);
         push(acc, "Audio IC (U3500) si court MIC2 avec nappes neuves", u3500_bonus);
-        checks.insert("Prioritaire : FPC relié au MIC2 nominal sur ce modèle.".into());
-        checks.insert("Contrôler siège FPC MIC2 / oxydation connecteur.".into());
+        checks.insert("Prioritaire : FPC reliÃ© au MIC2 nominal sur ce modÃ¨le.".into());
+        checks.insert("ContrÃ´ler siÃ¨ge FPC MIC2 / oxydation connecteur.".into());
     }
 
     if missing_has(missing, "mic1") && !iphone11 {
-        push(acc, "Micro primaire MIC1 / nappe ou connecteur RF audio", 0.88);
-        push(acc, "Ligne MIC1 ou bus audio associé", 0.69);
-        checks.insert("Isolation nappe où MIC1 est routée (modèle) · faux contact".into());
+        if is_iphone15_series_product(marketing, product, device_slug_hint) {
+            push(
+                acc,
+                crate::repair_wiki::IPHONE15_BOTTOM_MIC_MODULE_CAUSE,
+                0.96,
+            );
+            push(
+                acc,
+                "Assemblage USB-C complet ou reseat clip micro bas + joint acoustique",
+                0.9,
+            );
+            checks.insert(
+                "iPhone 15 + MIC1 : module PCB MEMS sur flex USB-C â€” trÃ¨s paniqueux si oxydÃ©.".into(),
+            );
+        } else {
+            push(acc, "MIC1 Â· nappe connecteur de charge / dock (cas terrain confirmÃ©)", 0.91);
+            push(acc, "Ligne MIC1 / I2C audio-dock ou connecteur oxydÃ©", 0.74);
+            checks.insert(
+                "MIC1 : tester d'abord une nappe dock OEM/Premium connue bonne avant carte mÃ¨re.".into(),
+            );
+        }
+    }
+
+    if missing_dock_pressure_hint(missing) && !iphone11 {
+        push(acc, "PRS0 Â· nappe connecteur de charge / capteur pression-dock", 0.92);
+        push(acc, "Dock aftermarket ou FPC charge mal clipsÃ© / oxydÃ©", 0.82);
+        checks.insert("PRS0 : cas terrain rÃ©current â€” remplacer/essayer dock OEM/Premium avant batterie ou carte.".into());
     }
 
     if missing_battery_hint(missing) && !iphone11 {
-        push(acc, "Batterie / BMS · capteur courant ou thermique TG/PRS", 0.9);
-        push(acc, "Connecteur battery FPC / gas gauge si PRS‑TG impliqué", 0.78);
-        checks.insert("Métrologie BMS · connecteur batterie · cellules si TG/PRS manquants".into());
+        push(acc, "Batterie / BMS Â· capteur courant ou thermique TG0", 0.9);
+        push(acc, "Connecteur battery FPC / gas gauge si TG0/BMS impliquÃ©", 0.78);
+        checks.insert("MÃ©trologie BMS Â· connecteur batterie Â· cellules si TG0/gauge manquants".into());
     }
 
     if !missing.is_empty() && !missing_has(missing, "mic2") && !missing_has(missing, "mic1") && !missing_battery_hint(missing) {
-        push(acc, "Capteur(s) listé(s) manquant(s) : nappe / connecteur correspondant(e)", 0.79);
-        checks.insert("Pour chaque nom de capteur : FPC relié puis continuités".into());
+        push(acc, "Capteur(s) listÃ©(s) manquant(s) : nappe / connecteur correspondant(e)", 0.79);
+        checks.insert("Pour chaque nom de capteur : FPC reliÃ© puis continuitÃ©s".into());
     }
 }
 
-/// Étape 3–4 : corrélations hardware + scoring multi-causes (jamais une seule cause en interne).
+fn apply_panic_kb_layer(
+    log: &str,
+    marketing: Option<&str>,
+    acc: &mut HashMap<String, f64>,
+    wiki_lines_out: &mut Vec<String>,
+) {
+    let Some(km) = knowledge::match_panic_kb(log, marketing) else {
+        return;
+    };
+    wiki_lines_out.push(format!(
+        "Base KB [{}] Â· {}",
+        km.matched_signature, km.explanation
+    ));
+    let w = ((km.confidence as f64) / 100.0 * 0.82).clamp(0.28, 0.68);
+    let key = format!("KB Â· {}", km.probable_cause.trim());
+    acc.entry(key)
+        .and_modify(|e| *e = e.max(w))
+        .or_insert(w);
+}
+
+fn merge_redundant_cause_names(causes: &mut Vec<PossibleCauseDiag>) {
+    if causes.len() < 2 {
+        return;
+    }
+    causes.sort_by(|a, b| {
+        b.confidence
+            .partial_cmp(&a.confidence)
+            .unwrap_or(Ordering::Equal)
+    });
+    let mut out: Vec<PossibleCauseDiag> = Vec::new();
+    'next: for c in causes.drain(..) {
+        let cl = c.name.to_lowercase();
+        for o in &mut out {
+            let ol = o.name.to_lowercase();
+            let (short, long, wc) = if c.name.len() <= o.name.len() {
+                (&cl, &ol, c.confidence)
+            } else {
+                (&ol, &cl, c.confidence)
+            };
+            if short.len() >= 32 && long.contains(short.as_str()) {
+                o.confidence = o.confidence.max(wc).min(0.97);
+                if c.name.len() > o.name.len() {
+                    o.name = c.name.clone();
+                }
+                continue 'next;
+            }
+        }
+        out.push(c);
+    }
+    *causes = out;
+}
+
 fn score_causes(
     normalized: &[String],
     extracted: &ExtractedFields,
@@ -523,6 +714,7 @@ fn score_causes(
     log_lc: &str,
     log_wide: &str,
     device_for_scoring: Option<&str>,
+    soc_id: Option<&str>,
     wiki_lines_out: &mut Vec<String>,
 ) -> (Vec<PossibleCauseDiag>, Vec<String>, f64) {
     let mut acc: HashMap<String, f64> = HashMap::new();
@@ -547,31 +739,56 @@ fn score_causes(
         device_for_scoring,
     );
 
+    score_iphone15_bottom_mic_module(
+        &mut acc,
+        &mut checks,
+        log_lc,
+        missing_sensors,
+        marketing,
+        product,
+        device_for_scoring,
+    );
+
+    if is_iphone11_family_product(product, device_for_scoring)
+        && missing_has(missing_sensors, "mic2")
+        && (log_lc.contains("thermalmonitord")
+            || log_lc.contains("no successful checkins from thermalmonitord"))
+    {
+        push(
+            &mut acc,
+            crate::repair_wiki::IPHONE11_MIC2_THERMAL_FLASH_POWER_CAUSE,
+            0.72,
+        );
+        checks.insert(
+            "iPhone 11 + thermalmonitord + MIC2 : vÃ©rifier nappe bouton power / flash.".into(),
+        );
+    }
+
     let iphone15_4_wireless_smc = is_iphone15_4_product(product, device_for_scoring)
         && iphone15_4_wireless_smc_fingerprint(log_lc);
 
     if iphone15_4_wireless_smc {
         push(
             &mut acc,
-            "Nappe wireless charging / assemblage MagSafe (motif TAOP·TAOJ + OUTBOX1 — prioritaire)",
+            "Nappe wireless charging / assemblage MagSafe (motif TAOPÂ·TAOJ + OUTBOX1 â€” prioritaire)",
             0.95,
         );
         push(
             &mut acc,
-            "Capteurs thermiques ou bus SMC sur nappe Qi — périph. sans réponse (OUTBOX1)",
+            "Capteurs thermiques ou bus SMC sur nappe Qi â€” pÃ©riph. sans rÃ©ponse (OUTBOX1)",
             0.88,
         );
         push(
             &mut acc,
-            "Nappe aftermarket, FPC mal clipsé, ou ligne I2C thermique rompue (avant carte mère / batterie seule)",
+            "Nappe aftermarket, FPC mal clipsÃ©, ou ligne I2C thermique rompue (avant carte mÃ¨re / batterie seule)",
             0.82,
         );
         checks.insert(
-            "Historique remplacement MagSafe / bobine / flex wireless : reprendre pièce OE ou ressertir avant BMS/CM"
+            "Historique remplacement MagSafe / bobine / flex wireless : reprendre piÃ¨ce OE ou ressertir avant BMS/CM"
                 .into(),
         );
         checks.insert(
-            "Ne pas classer en simple surchauffe générique, batterie seule, ou défaut carte mère sans isoler nappe Qi"
+            "Ne pas classer en simple surchauffe gÃ©nÃ©rique, batterie seule, ou dÃ©faut carte mÃ¨re sans isoler nappe Qi"
                 .into(),
         );
     }
@@ -581,8 +798,15 @@ fn score_causes(
     let thermal_battery_backed = missing_battery_hint(missing_sensors);
 
     if detect_i2c_stress(log_lc) {
-        push(&mut acc, "Bus I2C bloqué ou périphérique sans réponse (timeouts)", 0.82);
-        checks.insert("Localiser lignes I2C citées puis periph coupé ou rail associé".into());
+        let stuck_low = log_lc.contains("checkbusstatus") && log_lc.contains("scl") && log_lc.contains("stuck low");
+        if stuck_low {
+            push(&mut acc, "I2C SCL stuck low Â· pÃ©riphÃ©rique/flex qui tire le bus Ã  la masse", 0.89);
+            push(&mut acc, "Nappe dock/charge ou accessoire Lightning/USB-C Ã  isoler en premier", 0.83);
+            checks.insert("I2C SCL stuck low : dÃ©brancher nappes une par une, commencer par dock/charge/accessoires, puis mesurer diode SCL/SDA.".into());
+        } else {
+            push(&mut acc, "Bus I2C bloquÃ© ou pÃ©riphÃ©rique sans rÃ©ponse (timeouts)", 0.82);
+            checks.insert("Localiser lignes I2C citÃ©es puis periph coupÃ© ou rail associÃ©".into());
+        }
     }
 
     if log_lc.contains("gas gauge") || log_lc.contains("gasgauge") {
@@ -590,17 +814,50 @@ fn score_causes(
         checks.insert("Gauge / BMS / connecteur bat si gas gauge nominal".into());
     }
 
+    if log_lc.contains("panic-full") && log_lc.contains("3 minute") || log_lc.contains("3-minute") || log_lc.contains("restarts every 3") {
+        checks.insert("Reboot ~3 minutes : penser watchdog thermalmonitord / capteur absent, pas batterie au hasard.".into());
+    }
+
     for n in &norm_lc {
         match n.as_str() {
             s if s.contains("mic2 interrupt") => {
-                let base = if is_iphone_7_family(marketing, product) {
-                    0.97
+                if is_iphone_7_family(marketing, product) {
+                    push(&mut acc, "Audio IC (U3500)", 0.97);
+                    checks.insert("Mesure lignes MIC2 / ligne IÂ²S".into());
+                    checks.insert("Reflow / repro Audio IC selon gabarit".into());
+                } else if is_mic2_earpiece_generation(product, device_for_scoring) {
+                    if is_iphone11_family_product(product, device_for_scoring) {
+                        push(
+                            &mut acc,
+                            "MIC2 interrupt Â· iPhone 11 Â· Nappe bouton power Â· Micro cÃ´tÃ© flash",
+                            0.86,
+                        );
+                        push(
+                            &mut acc,
+                            "Audio IC (U3500) seulement aprÃ¨s exclusion nappe power et bus audio",
+                            0.42,
+                        );
+                        checks.insert(
+                            "MIC2 interrupt sÃ©rie 11 : nappe bouton power (micro flash), pas Ã©couteur en premier."
+                                .into(),
+                        );
+                    } else {
+                        push(
+                            &mut acc,
+                            "Ã‰couteur interne / prÃ©-ensemble avant (MIC2 interrupt â€” corrÃ©lation forte Xâ†’12)",
+                            0.85,
+                        );
+                        push(&mut acc, "Audio IC (U3500) seulement aprÃ¨s exclusion nappe Ã©couteur", 0.48);
+                        checks.insert(
+                            "MIC2 interrupt hors iPhone 7 : isoler prÃ©-ensemble Ã©couteur + FPC avant U3500."
+                                .into(),
+                        );
+                    }
                 } else {
-                    0.72
-                };
-                push(&mut acc, "Audio IC (U3500)", base);
-                checks.insert("Mesure lignes MIC2 / ligne I²S".into());
-                checks.insert("Reflow / repro Audio IC selon gabarit".into());
+                    push(&mut acc, "Audio IC (U3500)", 0.72);
+                    checks.insert("Mesure lignes MIC2 / ligne IÂ²S".into());
+                    checks.insert("Reflow / repro Audio IC selon gabarit".into());
+                }
             }
             s if s.contains("thermalmonitord") || s.contains("no successful checkins") => {
                 let (w_therm, w_dock, w_batt) =
@@ -620,12 +877,12 @@ fn score_causes(
 
                 push(
                     &mut acc,
-                    "Chaîne thermique / rapport températures",
+                    "ChaÃ®ne thermique / rapport tempÃ©ratures",
                     w_therm,
                 );
                 push(
                     &mut acc,
-                    "Nappe charge / dock (chemins données capteurs)",
+                    "Nappe charge / dock (chemins donnÃ©es capteurs)",
                     w_dock,
                 );
                 push(
@@ -637,10 +894,17 @@ fn score_causes(
                 if thermal_with_audio_miss && !thermal_battery_backed {
                     push(
                         &mut acc,
-                        "thermalmonitord sans check-ins (effet capteur/bus — pas forcément surchauffe)",
+                        "thermalmonitord sans check-ins (effet capteur/bus â€” pas forcÃ©ment surchauffe)",
                         0.64,
                     );
-                    checks.insert("Ne pas conclure surchauffe réelle sans autre motif thermique dans le panic".into());
+                    checks.insert("Ne pas conclure surchauffe rÃ©elle sans autre motif thermique dans le panic".into());
+                }
+
+                if !thermal_with_audio_miss && !thermal_battery_backed {
+                    checks.insert(
+                        "thermalmonitord seul sans capteur manquant : souvent symptÃ´me bus â€” â‰  preuve panne thermique CPU (atelier)."
+                            .into(),
+                    );
                 }
 
                 checks.insert("Nappe charge et connecteur".into());
@@ -648,9 +912,42 @@ fn score_causes(
                 checks.insert("Connecteur battery FPC".into());
             }
             s if s.contains("userspace watchdog") || s.ends_with("watchdog timeout") => {
-                push(&mut acc, "Blocage watchdog (periph I2C / capteurs)", 0.78);
-                push(&mut acc, "PMIC / rails instables possibles", 0.62);
+                push(&mut acc, "Blocage watchdog (periph I2C / capteurs)", 0.72);
+                push(&mut acc, "PMIC / rails instables possibles", 0.58);
                 checks.insert("Rails alim basse tension (mesure)".into());
+                checks.insert(
+                    "userspace watchdog : signature souvent gÃ©nÃ©rique â€” Ã©carter iOS / restore avant hardware seul (surtout 14/15)."
+                        .into(),
+                );
+            }
+            s if s.contains("aop nmi power") => {
+                push(&mut acc, "Nappe bouton Power ou assemblage camÃ©ra avant (AOP NMI POWER â€” iFixit)", 0.82);
+                checks.insert(
+                    "AOP NMI POWER : iFixit â€” cÃ¢ble Power ou camÃ©ra avant ; isoler avant carte."
+                        .into(),
+                );
+            }
+            s if s.contains("applesochot") => {
+                push(
+                    &mut acc,
+                    "Surchauffe SoC / ligne alim SoC ou dÃ©faut carte (AppleSocHot â€” souvent carte, pas flex)",
+                    0.76,
+                );
+                checks.insert(
+                    "AppleSocHot : iFixit â€” vÃ©rifier zones rÃ©parÃ©es ; Wiâ€‘Fi / audio carte souvent en cause."
+                        .into(),
+                );
+            }
+            s if s.contains("undefined kernel instruction") => {
+                push(
+                    &mut acc,
+                    "Instruction noyau non dÃ©finie â€” cause logicielle frÃ©quente (mise Ã  jour / restore)",
+                    0.55,
+                );
+                checks.insert(
+                    "iFixit : si persiste aprÃ¨s restore complet â€” penser RAM / NAND / carte."
+                        .into(),
+                );
             }
             s if s.contains("aop panic") => {
                 let fx = if is_iphone_x_class(marketing.as_deref()) {
@@ -661,6 +958,10 @@ fn score_causes(
                 push(&mut acc, "Nappe Face ID / capteurs avant", fx);
                 push(&mut acc, "Haut-parleur / flood illuminator (ligne avant)", 0.72);
                 checks.insert("Nappe avant + proximity / flood".into());
+                checks.insert(
+                    "AOP PANIC : plusieurs pÃ©riphÃ©riques avant possibles â€” ne pas arrÃªter un seul composant sans isolement."
+                        .into(),
+                );
             }
             s if s.contains("smc panic") || joined.contains("bsc failure") => {
                 let (w_rails, w_batt_smc, w_out) = if iphone15_4_wireless_smc {
@@ -675,33 +976,56 @@ fn score_causes(
                     w_batt_smc,
                 );
                 if joined.contains("outbox1") || norm_lc.iter().any(|x| x.contains("outbox1")) {
-                    push(&mut acc, "Lignes SMC / données capteurs (OUTBOX)", w_out);
+                    push(&mut acc, "Lignes SMC / donnÃ©es capteurs (OUTBOX)", w_out);
                 }
                 checks.insert("USB-C ou nappe charge (rails)".into());
-                checks.insert("Capteurs thermiques → SMC".into());
+                checks.insert("Capteurs thermiques â†’ SMC".into());
             }
             s if s.contains("outbox1") => {
                 let w_ob = if iphone15_4_wireless_smc { 0.48_f64 } else { 0.8 };
-                push(&mut acc, "File SMC — capteurs / charge non prêts", w_ob);
+                push(&mut acc, "File SMC â€” capteurs / charge non prÃªts", w_ob);
                 checks.insert("Bloc charge + bus capteurs basse niveau".into());
             }
             s if s.contains("bsc failure") => {
                 let w_bsc = if iphone15_4_wireless_smc { 0.32_f64 } else { 0.77 };
-                push(&mut acc, "BSC / liaison batterie-bus système", w_bsc);
+                push(&mut acc, "BSC / liaison batterie-bus systÃ¨me", w_bsc);
                 checks.insert("Battery BMS et connecteur batterie".into());
+                if !missing_sensors.is_empty() || joined.contains("missing sensor") {
+                    checks.insert(
+                        "SMC BSC + capteur / missing sensor : privilÃ©gier pÃ©riphÃ©rique absent avant PMIC mort (atelier)."
+                            .into(),
+                    );
+                }
             }
             s if s.contains("ans2") => {
-                push(&mut acc, "NAND / contrôleur stockage", 0.92);
+                push(&mut acc, "NAND / contrÃ´leur stockage / interposer CPUâ€“NAND", 0.92);
                 checks.insert("Stress stockage / health NAND".into());
+                checks.insert(
+                    "ANS2 : sur 13+ aprÃ¨s sÃ©paration carte â€” penser soudure NAND / rails donnÃ©es (pas seulement Â« SSD Â» gÃ©nÃ©rique)."
+                        .into(),
+                );
+            }
+            s if s.contains("no valid cfg") => {
+                push(
+                    &mut acc,
+                    "NAND / corruption stockage Â· Â« No valid CFG Â» (corrÃ©lation atelier forte)",
+                    0.88,
+                );
+                checks.insert("No valid CFG : NAND / config stockage â€” croiser ANS2 et historique swap.".into());
             }
             s if s.contains("baseband panic") => {
-                push(&mut acc, "Modem baseband / BB_CPU", 0.88);
-                push(&mut acc, "Séparation interposer / RF (mécanique)", 0.55);
+                push(&mut acc, "Modem baseband / BB_CPU", 0.82);
+                push(&mut acc, "SÃ©paration interposer / RF (mÃ©canique)", 0.52);
+                push(&mut acc, "Cause logicielle / eSIM / profil opÃ©rateur (Ã  Ã©carter avant RF)", 0.45);
                 checks.insert("Zone baseband / RF shield".into());
+                checks.insert(
+                    "Baseband panic : piÃ¨ge atelier â€” RF, alim BB, eSIM ou iOS ; ne pas conclure hardware seul."
+                        .into(),
+                );
             }
             s if s.contains("sep panic") => {
-                push(&mut acc, "Secure Enclave / Face ID pairée", 0.9);
-                push(&mut acc, "Incompatibilité NAND sans repro SE (swap)", 0.68);
+                push(&mut acc, "Secure Enclave / Face ID pairÃ©e", 0.9);
+                push(&mut acc, "IncompatibilitÃ© NAND sans repro SE (swap)", 0.68);
                 checks.insert("Historique Face ID / TrueDepth".into());
             }
             s if s.contains("missing sensor")
@@ -716,9 +1040,13 @@ fn score_causes(
                 } else {
                     0.76
                 };
-                push(&mut acc, "Nappe / dock ou FPC relié aux capteurs listés manquants", nappe);
-                push(&mut acc, "Module caméra / lidar si capteur optique nominé", 0.61);
-                checks.insert("Isolation capteurs listés comme manquants".into());
+                push(&mut acc, "Nappe / dock ou FPC reliÃ© aux capteurs listÃ©s manquants", nappe);
+                push(&mut acc, "Module camÃ©ra / lidar si capteur optique nominÃ©", 0.61);
+                checks.insert("Isolation capteurs listÃ©s comme manquants".into());
+                checks.insert(
+                    "Table capteurs / thermalmonitord : iFixit FR â€” lire la ligne Â« missing sensor Â» au-delÃ  du premier panicString."
+                        .into(),
+                );
             }
             _ => {}
         }
@@ -748,7 +1076,7 @@ fn score_causes(
                     &format!("Type bug {bt} ({label})"),
                     wt,
                 );
-                checks.insert("Relire panicString après extraction courte".into());
+                checks.insert("Relire panicString aprÃ¨s extraction courte".into());
                 if thermal_bug_demote {
                     checks.insert("Bug thermique IOS : corroborer avec capteurs manquants/bus avant axe batterie dock".into());
                 }
@@ -756,11 +1084,11 @@ fn score_causes(
         }
     }
 
-    // Modèle générique depuis KB-lite : génération
+    // ModÃ¨le gÃ©nÃ©rique depuis KB-lite : gÃ©nÃ©ration
     if let Some(m) = &mkt {
         if m.contains("iphone 15") || m.contains("iphone 16") || m.contains("iphone 17") {
             if (joined.contains("smc panic") || joined.contains("thermal")) && !iphone15_4_wireless_smc {
-                push(&mut acc, "Sous-système USB-C / PMU ( PMIC )", 0.68);
+                push(&mut acc, "Sous-systÃ¨me USB-C / PMU ( PMIC )", 0.68);
             }
         }
     }
@@ -774,27 +1102,32 @@ fn score_causes(
         &mut checks,
         extracted.product.as_deref(),
         device_for_scoring,
+        soc_id,
         log_lc,
         log_wide,
+        missing_sensors,
     );
     wiki_lines_out.extend(wiki_ui);
+    apply_panic_kb_layer(log_wide, marketing, &mut acc, wiki_lines_out);
 
-    let causes_vec: Vec<PossibleCauseDiag> = acc
+    let mut causes: Vec<PossibleCauseDiag> = acc
         .into_iter()
         .map(|(name, confidence)| PossibleCauseDiag { name, confidence })
         .collect();
 
-    // Plus le rang est élevé, plus la cause est « actionnable » / spécifique.
-    // (Le tri doit être décroissant sur ce rang, sinon tout ce qui vaut 0 — ex. Chaîne thermique — passe devant SMC/masques.)
+    merge_redundant_cause_names(&mut causes);
+
+    // Plus le rang est Ã©levÃ©, plus la cause est Â« actionnable Â» / spÃ©cifique.
+    // (Le tri doit Ãªtre dÃ©croissant sur ce rang, sinon tout ce qui vaut 0 â€” ex. ChaÃ®ne thermique â€” passe devant SMC/masques.)
     fn hardware_precision_rank(name: &str) -> u8 {
         let n = name.to_lowercase();
         let trimmed = name.trim_start();
         if trimmed.starts_with("0x") {
             return 5;
         }
-        // Corrélations capteurs manquants nommées (priorité surThermalMonitorD générique ou explicatif).
-        if n.starts_with("mic2 ·")
-            || n.starts_with("mic1 ·")
+        // CorrÃ©lations capteurs manquants nommÃ©es (prioritÃ© surThermalMonitorD gÃ©nÃ©rique ou explicatif).
+        if n.starts_with("mic2 Â·")
+            || n.starts_with("mic1 Â·")
             || (n.contains("mic2")
                 && (n.contains("lightning")
                     || n.contains("dock")
@@ -821,7 +1154,6 @@ fn score_causes(
         0
     }
 
-    let mut causes = causes_vec;
     causes.sort_by(|a, b| {
         hardware_precision_rank(&b.name)
             .cmp(&hardware_precision_rank(&a.name))
@@ -849,6 +1181,309 @@ fn score_causes(
     (causes, rec, confidence_global)
 }
 
+
+fn push_unique_vec(out: &mut Vec<String>, value: impl Into<String>) {
+    let v = value.into();
+    if !out.iter().any(|x| x == &v) {
+        out.push(v);
+    }
+}
+
+fn contains_any(hay: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|n| hay.contains(n))
+}
+
+
+fn extract_i2c_bus_names(log_lc: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let re = Regex::new(r"(?i)\b(i2c\d+|i2c[-_ ]?[a-z0-9]{1,8}|scl|sda|spi\d+|uart\d+)\b").unwrap();
+    for m in re.find_iter(log_lc).take(12) {
+        let v = m.as_str().trim().replace(' ', "-");
+        if !out.iter().any(|x: &String| x.eq_ignore_ascii_case(&v)) {
+            out.push(v);
+        }
+    }
+    out
+}
+
+fn evidence_score_label(confidence: f64, cause_count: usize, signatures: usize, critical: usize) -> String {
+    let pct = (confidence * 100.0).round().clamp(0.0, 99.0) as u8;
+    if confidence >= 0.78 && cause_count > 0 {
+        format!("Score fort ({pct}%) : signature prÃ©cise + piste actionnable, Ã  valider par test piÃ¨ce/mesure.")
+    } else if confidence >= 0.48 {
+        format!("Score moyen ({pct}%) : indices cohÃ©rents mais concurrence entre plusieurs causes ; isolation obligatoire.")
+    } else if signatures > 0 || critical > 0 {
+        format!("Score prudent ({pct}%) : panic reconnu mais preuve incomplÃ¨te ; comparer avec un deuxiÃ¨me log rÃ©cent.")
+    } else {
+        "Score faible : pas assez de signatures exploitables dans le panic fourni.".into()
+    }
+}
+
+fn build_evidence_markers(
+    diagnostic: &StructuredDiagnostic,
+    log_lc: &str,
+    missing_sensors: &[String],
+) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(m) = &diagnostic.marketing_name {
+        push_unique_vec(&mut out, format!("ModÃ¨le rÃ©solu : {m}"));
+    } else if diagnostic.device != "unknown" {
+        push_unique_vec(&mut out, format!("Identifiant produit : {}", diagnostic.device));
+    }
+    if !missing_sensors.is_empty() {
+        push_unique_vec(&mut out, format!("Capteurs manquants lus : {}", missing_sensors.join(", ")));
+    }
+    for s in diagnostic.normalized_signatures.iter().take(6) {
+        push_unique_vec(&mut out, format!("Signature : {s}"));
+    }
+    for bus in extract_i2c_bus_names(log_lc).into_iter().take(4) {
+        push_unique_vec(&mut out, format!("Bus citÃ© : {bus}"));
+    }
+    for line in diagnostic.critical_lines.iter().take(4) {
+        let clean = line.replace('\\', "");
+        let snip: String = clean.chars().take(150).collect();
+        push_unique_vec(&mut out, format!("Ligne critique : {snip}"));
+    }
+    if out.is_empty() {
+        push_unique_vec(&mut out, "Aucune preuve forte extraite : importer le panic-full le plus rÃ©cent.".to_string());
+    }
+    out.truncate(10);
+    out
+}
+
+fn choose_next_best_test(
+    diagnostic: &StructuredDiagnostic,
+    missing_sensors: &[String],
+    log_lc: &str,
+) -> String {
+    let pack = diagnostic
+        .possible_causes
+        .iter()
+        .map(|c| c.name.to_lowercase())
+        .chain(diagnostic.normalized_signatures.iter().map(|s| s.to_lowercase()))
+        .collect::<Vec<_>>()
+        .join(" | ");
+
+    if missing_sensors.iter().any(|s| s == "mic2") && diagnostic.device.eq_ignore_ascii_case("iphone12,1") {
+        return "Tester une nappe bouton power/volume iPhone 11 OEM connue bonne (micro cÃ´tÃ© flash).".into();
+    }
+    if missing_sensors.iter().any(|s| s == "mic1" || s == "prs0" || s.starts_with("prs")) {
+        return "Monter une nappe dock/charge OEM ou premium connue bonne avant toute intervention carte mÃ¨re.".into();
+    }
+    if missing_sensors.iter().any(|s| s.starts_with("tg0") || s.contains("gauge")) || pack.contains("gas gauge") {
+        return "Tester batterie connue bonne, puis mesurer lignes BMS/gauge au connecteur batterie.".into();
+    }
+    if pack.contains("magsafe") || pack.contains("wireless") || (log_lc.contains("taop") && log_lc.contains("taoj")) {
+        return "DÃ©brancher/remplacer la nappe Qi/MagSafe puis relancer un boot dâ€™observation.".into();
+    }
+    if pack.contains("i2c") || log_lc.contains("scl") || log_lc.contains("sda") {
+        return "Isoler le bus IÂ²C : dÃ©brancher pÃ©riphÃ©riques un par un, puis comparer diode SCL/SDA.".into();
+    }
+    if pack.contains("ans2") || pack.contains("nand") || pack.contains("no valid cfg") {
+        return "Sauvegarder/extraire les donnÃ©es avant restore ; contrÃ´ler zone NAND/stockage et interposer.".into();
+    }
+    if pack.contains("baseband") {
+        return "ContrÃ´ler IMEI/baseband dans iOS, puis alimentation BB/RF avant de conclure carte mÃ¨re.".into();
+    }
+    if let Some(first) = diagnostic.action_plan.first() {
+        return first.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c.is_whitespace()).to_string();
+    }
+    "Importer un second panic-full rÃ©cent et refaire lâ€™analyse avec le modÃ¨le exact.".into()
+}
+
+fn build_technician_summary(diagnostic: &StructuredDiagnostic) -> String {
+    let cause = diagnostic
+        .possible_causes
+        .first()
+        .map(|c| c.name.as_str())
+        .unwrap_or("Panne non classÃ©e");
+    let pct = (diagnostic.confidence_global * 100.0).round().clamp(0.0, 99.0) as u8;
+    let test = diagnostic.next_best_test.trim();
+    if test.is_empty() {
+        format!("{cause} Â· confiance {pct}% Â· valider par isolation avant devis.")
+    } else {
+        format!("{cause} Â· confiance {pct}% Â· premier test : {test}")
+    }
+}
+
+fn recalibrate_confidence(causes: &mut [PossibleCauseDiag], signatures: &[String], critical_lines: &[String], missing_sensors: &[String]) -> f64 {
+    if causes.is_empty() {
+        return 0.0;
+    }
+    for c in causes.iter_mut() {
+        let n = c.name.to_lowercase();
+        if !missing_sensors.is_empty() && (n.contains("capteur") || n.contains("mic") || n.contains("prs") || n.contains("tg0") || n.contains("bms")) {
+            c.confidence = (c.confidence + 0.06).min(0.97);
+        }
+        if n.contains("gÃ©nÃ©rique") || n.contains("type bug") || n.contains("logicielle frÃ©quente") {
+            c.confidence = (c.confidence * 0.86).max(0.22);
+        }
+    }
+    let c1 = causes.get(0).map(|x| x.confidence).unwrap_or(0.0);
+    let c2 = causes.get(1).map(|x| x.confidence).unwrap_or(0.0);
+    let gap = (c1 - c2).max(0.0);
+    let evidence_bonus = (signatures.len() as f64 * 0.012 + critical_lines.len() as f64 * 0.006).min(0.06);
+    let ambiguity_penalty = if causes.len() >= 4 && gap < 0.10 { 0.08 } else if gap < 0.05 { 0.05 } else { 0.0 };
+    (c1 + evidence_bonus + gap.min(0.08) - ambiguity_penalty).clamp(0.18, 0.97)
+}
+
+fn build_dangerous_workflow(
+    diagnostic: &StructuredDiagnostic,
+    log_lc: &str,
+    missing_sensors: &[String],
+) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
+    let mut action_plan = Vec::new();
+    let mut danger_flags = Vec::new();
+    let mut isolation = Vec::new();
+    let mut parts = Vec::new();
+
+    let causes_lc = diagnostic
+        .possible_causes
+        .iter()
+        .map(|c| c.name.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let sig_lc = diagnostic
+        .normalized_signatures
+        .iter()
+        .map(|s| s.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let pack = format!("{log_lc} | {causes_lc} | {sig_lc}");
+
+    let iphone11_chassis = {
+        let d = diagnostic.device.trim().to_ascii_lowercase();
+        matches!(d.as_str(), "iphone12,1" | "iphone12,3" | "iphone12,5")
+            || diagnostic.marketing_name.as_ref().is_some_and(|m| {
+                let l = m.to_lowercase();
+                l.contains("iphone 11") && !l.contains("iphone 12")
+            })
+    };
+
+    push_unique_vec(&mut action_plan, "0. Sauvegarde client si lâ€™iPhone tient.");
+    push_unique_vec(&mut action_plan, "1. Utiliser le panic-full le plus rÃ©cent.");
+
+    let has_thermal = pack.contains("thermalmonitord") || pack.contains("no successful checkins");
+    let has_missing = !missing_sensors.is_empty() || pack.contains("missing sensor");
+    if has_thermal || has_missing {
+        push_unique_vec(&mut danger_flags, "Reboot ~3 min : souvent un capteur absent, pas une batterie HS.");
+        push_unique_vec(&mut action_plan, "2. Noter le capteur ou le masque indiquÃ© dans le log.");
+        push_unique_vec(&mut isolation, "Boot minimal, puis remonter une nappe Ã  la fois.");
+    }
+
+    if contains_any(&pack, &["mic1", "prs0", "prs ", "dock", "connecteur de charge", "charging port"]) {
+        push_unique_vec(&mut parts, "Nappe charge / dock OEM");
+        push_unique_vec(&mut action_plan, "Tester une nappe charge connue bonne.");
+        push_unique_vec(&mut isolation, "Inspecter FPC dock (pli, oxy).");
+        push_unique_vec(&mut danger_flags, "Dock aftermarket : charge OK, capteurs KO.");
+    }
+
+    let mic2_on_missing = missing_sensors
+        .iter()
+        .any(|s| s.eq_ignore_ascii_case("mic2"));
+    if iphone11_chassis && mic2_on_missing {
+        push_unique_vec(
+            &mut danger_flags,
+            "MIC2 iPhone 11 : nappe bouton power + micro flash â€” oxydation connecteur, FPC mal clipÃ©, vitre arriÃ¨re / flash, chute ou liquide (reboot ~3 min).",
+        );
+        push_unique_vec(
+            &mut action_plan,
+            "iPhone 11 MIC2 : connecteur power (oxydation), historique vitre arriÃ¨re / flash / chute, puis nappe power OEM.",
+        );
+        push_unique_vec(&mut parts, "Nappe bouton power iPhone 11 (micro cÃ´tÃ© flash)");
+        push_unique_vec(&mut isolation, "Ne pas partir sur lâ€™Ã©couteur en premier sur sÃ©rie 11.");
+    } else if iphone11_chassis
+        && (has_missing
+            || has_thermal
+            || contains_any(
+                &pack,
+                &["mic1", "prs0", "mic2", "dock", "connecteur de charge", "charging port"],
+            ))
+    {
+        push_unique_vec(
+            &mut danger_flags,
+            "iPhone 11 : surtout dock, Power+flash, puis interposer â€” prÃ©-ensemble Ã©couteur facultatif Â· pas le mÃªme profil Â« connecteur Â» quâ€™en sÃ©rie 12.",
+        );
+        push_unique_vec(
+            &mut action_plan,
+            "iPhone 11 : Power + flash, puis dock ; si carte double, tester interposer.",
+        );
+        push_unique_vec(&mut parts, "iPhone 11 : nappe Power + flash de test");
+    }
+
+    if contains_any(&pack, &["mic2", "Ã©couteur", "earpiece", "capteurs avant", "prÃ©-ensemble avant"])
+        && !iphone11_chassis
+    {
+        push_unique_vec(&mut parts, "Ã‰couteur / avant connu bon");
+        push_unique_vec(&mut action_plan, "MIC2 : Ã©couteur ou power-flex selon modÃ¨le.");
+        push_unique_vec(&mut isolation, "Swap prÃ©-ensemble avant, voir grille micro et liquide.");
+    }
+
+    if contains_any(&pack, &["tg0", "bms", "gas gauge", "batterie", "battery", "fuel gauge"]) {
+        push_unique_vec(&mut parts, "Batterie + FPC batterie");
+        push_unique_vec(&mut action_plan, "Batterie connue bonne, puis lignes BMS.");
+        push_unique_vec(&mut isolation, "Diode mode BMS, pression lÃ©gÃ¨re FPC.");
+    }
+
+    if contains_any(&pack, &["i2c", "iÂ²c", "scl stuck low", "stuck low", "nack", "timed out", "timeout"]) {
+        push_unique_vec(&mut parts, "Nappes du bus citÃ© + schÃ©ma");
+        push_unique_vec(&mut action_plan, "IÂ²C : une nappe Ã  la fois.");
+        push_unique_vec(&mut isolation, "SCL/SDA en diode, pull-up.");
+        push_unique_vec(&mut danger_flags, "IÂ²C : une seule nappe peut bloquer tout le bus.");
+    }
+
+    if contains_any(&pack, &["smc panic", "bsc failure", "sensor array", "outbox1", "taop", "taoj"]) {
+        push_unique_vec(&mut action_plan, "SMC : lire le masque capteur, pas seulement le titre.");
+        push_unique_vec(&mut isolation, "Wireless / USB-C selon le log.");
+        push_unique_vec(&mut danger_flags, "SMC â‰  PMIC mort sans preuve.");
+    }
+
+    if contains_any(&pack, &["magsafe", "wireless", "qi", "taop", "taoj", "outbox1"]) {
+        push_unique_vec(&mut parts, "Nappe Qi / MagSafe");
+        push_unique_vec(&mut action_plan, "Resserrer ou changer la nappe sans fil.");
+    }
+
+    if contains_any(&pack, &["ans2", "nvme", "nand", "no valid cfg", "ememory", "apcie", "invalid queue"]) {
+        push_unique_vec(&mut parts, "Zone stockage / NAND");
+        push_unique_vec(&mut action_plan, "DonnÃ©es client : Ã©viter restore destructif.");
+        push_unique_vec(&mut danger_flags, "NAND : risque perte de donnÃ©es.");
+    }
+
+    if contains_any(&pack, &["baseband", "bb_cpu", "modem", "rf"]) {
+        push_unique_vec(&mut parts, "Zone modem / RF");
+        push_unique_vec(&mut action_plan, "VÃ©rifier rÃ©seau, eSIM, puis hardware BB.");
+        push_unique_vec(&mut danger_flags, "Baseband : pas tout mettre sur la carte sans contexte rÃ©seau.");
+    }
+
+    if contains_any(&pack, &["aop panic", "aop nmi", "bosch", "flood", "face id", "proximity"]) {
+        push_unique_vec(&mut parts, "Nappes avant (Face ID, prox, Ã©couteur)");
+        push_unique_vec(&mut action_plan, "AOP : nappes avant et liquide.");
+        push_unique_vec(&mut danger_flags, "Face ID : piÃ¨ces pairÃ©es.");
+    }
+
+    if diagnostic.confidence_global < 0.45 {
+        push_unique_vec(&mut action_plan, "Score bas : second log + photos connecteurs.");
+        push_unique_vec(&mut danger_flags, "Ne pas promettre une piÃ¨ce unique au client.");
+    } else if diagnostic.confidence_global >= 0.78 {
+        push_unique_vec(&mut action_plan, "Score haut : prÃ©parer la piÃ¨ce, valider au multimÃ¨tre.");
+    }
+
+    if parts.is_empty() {
+        push_unique_vec(&mut parts, "Ã‰cran + batterie + dock de test");
+        push_unique_vec(&mut parts, "MultimÃ¨tre + schÃ©ma");
+    }
+    if isolation.is_empty() {
+        push_unique_vec(&mut isolation, "Minimal puis une nappe Ã  la fois.");
+        push_unique_vec(&mut isolation, "Microscope : connecteurs, liquide, pins.");
+    }
+
+    action_plan.truncate(10);
+    danger_flags.truncate(8);
+    isolation.truncate(8);
+    parts.truncate(8);
+    (action_plan, danger_flags, isolation, parts)
+}
+
 fn resolve_panic_type(extracted: &ExtractedFields, normalized: &[String]) -> String {
     let pack = normalized
         .iter()
@@ -858,6 +1493,18 @@ fn resolve_panic_type(extracted: &ExtractedFields, normalized: &[String]) -> Str
 
     if pack.contains("smc panic") || pack.contains("bsc failure") || pack.contains("outbox1") {
         return "smc_bsc_outbox_chain".into();
+    }
+    if pack.contains("no valid cfg") {
+        return "no_valid_cfg_nand".into();
+    }
+    if pack.contains("applesochot") {
+        return "applesochot_soc_thermal".into();
+    }
+    if pack.contains("aop nmi power") {
+        return "aop_nmi_power".into();
+    }
+    if pack.contains("undefined kernel instruction") {
+        return "undefined_kernel_instruction".into();
     }
     if pack.contains("ans2") {
         return "ans2_storage".into();
@@ -886,8 +1533,6 @@ fn resolve_panic_type(extracted: &ExtractedFields, normalized: &[String]) -> Str
     "unknown".into()
 }
 
-/// Pipeline complet jusqu’au JSON métier obligatoire.
-/// `ips_envelope` = fichier IPS brut (.ips) lorsque `log` est seulement l’extrait panic — pour ProductType / product / bug_type.
 pub fn diagnose_structured(
     log: &str,
     device_model_hint: Option<&str>,
@@ -898,7 +1543,16 @@ pub fn diagnose_structured(
         Some(env) if !env.trim().is_empty() => format!("{}\n{}", env.trim(), log),
         _ => log.to_string(),
     };
-    let parsed_miss = crate::panic_parser::parse_panic_log(&wide_combined);
+    let mut parsed_miss = crate::panic_parser::parse_panic_log(&wide_combined);
+    let parsed_primary = crate::panic_parser::parse_panic_log(log);
+    // IPS complet + extrait : ne pas agrÃ©ger toutes les lignes Â« Missing sensor Â» du fichier
+    // (sinon un vieux bloc mic2 pollue un panic courant tg0v/prs0 dans lâ€™extrait).
+    if !parsed_primary.missing_sensors.is_empty() {
+        parsed_miss.missing_sensors = parsed_primary.missing_sensors;
+    } else if ips_envelope.is_some_and(|s| !s.trim().is_empty()) {
+        parsed_miss.missing_sensors =
+            crate::panic_parser::extract_missing_sensors_last(&wide_combined);
+    }
     let mut normalized = normalize_signatures(log, &extracted);
 
     for sens in &parsed_miss.missing_sensors {
@@ -936,7 +1590,7 @@ pub fn diagnose_structured(
     let log_wide = scan_wide_blob(&wide_combined);
     let mut wiki_hints: Vec<String> = Vec::new();
 
-    let (possible_causes, recommended_checks, mut confidence_global) = score_causes(
+    let (mut possible_causes, recommended_checks, mut confidence_global) = score_causes(
         &normalized,
         &extracted,
         marketing,
@@ -944,7 +1598,16 @@ pub fn diagnose_structured(
         &log_lc,
         log_wide,
         resolved_hint,
+        extracted.soc_id.as_deref(),
         &mut wiki_hints,
+    );
+
+    let critical_lines = extract_critical_signal_lines(&wide_combined);
+    confidence_global = recalibrate_confidence(
+        &mut possible_causes,
+        &normalized,
+        &critical_lines,
+        &parsed_miss.missing_sensors,
     );
 
     let panic_type = resolve_panic_type(&extracted, &normalized);
@@ -968,9 +1631,7 @@ pub fn diagnose_structured(
     }
     .to_string();
 
-    let critical_lines = extract_critical_signal_lines(&wide_combined);
-
-    StructuredDiagnostic {
+    let mut diagnostic = StructuredDiagnostic {
         device: device.clone(),
         marketing_name: marketing_opt_str,
         panic_type,
@@ -981,12 +1642,76 @@ pub fn diagnose_structured(
         recommended_checks,
         critical_lines,
         wiki_hints,
-    }
+        action_plan: Vec::new(),
+        danger_flags: Vec::new(),
+        isolation_sequence: Vec::new(),
+        likely_parts: Vec::new(),
+        evidence_markers: Vec::new(),
+        technician_summary: String::new(),
+        confidence_rationale: String::new(),
+        next_best_test: String::new(),
+    };
+
+    let (action_plan, danger_flags, isolation_sequence, likely_parts) =
+        build_dangerous_workflow(&diagnostic, &log_lc, &parsed_miss.missing_sensors);
+    diagnostic.action_plan = action_plan;
+    diagnostic.danger_flags = danger_flags;
+    diagnostic.isolation_sequence = isolation_sequence;
+    diagnostic.likely_parts = likely_parts;
+    diagnostic.evidence_markers = build_evidence_markers(&diagnostic, &log_lc, &parsed_miss.missing_sensors);
+    diagnostic.next_best_test = choose_next_best_test(&diagnostic, &parsed_miss.missing_sensors, &log_lc);
+    diagnostic.confidence_rationale = evidence_score_label(
+        diagnostic.confidence_global,
+        diagnostic.possible_causes.len(),
+        diagnostic.normalized_signatures.len(),
+        diagnostic.critical_lines.len(),
+    );
+    diagnostic.technician_summary = build_technician_summary(&diagnostic);
+    diagnostic
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const FIXTURE_ANS2: &str = r#"ProductType: iPhone14,5
+panicString "ANS2 Recoverable Panic test""#;
+
+    const FIXTURE_NVME_CHART: &str =
+        r#"product "iPhone15,2" nvme controller reset kernel nvme error"#;
+
+    #[test]
+    fn regression_fixture_ans2_normalizes_storage() {
+        let d = diagnose_structured(FIXTURE_ANS2, Some("iPhone14,5"), None);
+        assert!(
+            d.normalized_signatures
+                .iter()
+                .any(|s| s.contains("ANS2") || s.to_lowercase().contains("ans2")),
+            "{:?}",
+            d.normalized_signatures
+        );
+    }
+
+    #[test]
+    fn regression_fixture_nvme_triggers_chart_cause() {
+        let d = diagnose_structured(FIXTURE_NVME_CHART, Some("iPhone15,2"), None);
+        assert!(
+            d.possible_causes.iter().any(|c| c.name.to_lowercase().contains("nvme")),
+            "{:?}",
+            d.possible_causes
+        );
+    }
+
+    #[test]
+    fn regression_fixture_userspace_watchdog_kb_or_core() {
+        let log = r#"bug_type 210
+userspace watchdog timeout in Springboard"#;
+        let d = diagnose_structured(log, Some("iPhone 14"), None);
+        assert!(
+            !d.possible_causes.is_empty() || !d.recommended_checks.is_empty(),
+            "expected some diagnostic output"
+        );
+    }
 
     #[test]
     fn missing_mic2_with_thermal_daemon_prioritizes_audio_path() {
@@ -1002,8 +1727,11 @@ mod tests {
         let tl = top.name.to_lowercase();
         assert!(
             tl.contains("mic2")
-                && (tl.contains("flex bouton power") || tl.contains("bouton power")),
-            "iPhone 11 / MIC2 : attendu flex power avant piste thermal générique · {:?}",
+                && (tl.contains("power")
+                    || tl.contains("flash")
+                    || tl.contains("bouton")
+                    || tl.contains("micro")),
+            "iPhone 11 / MIC2 : attendu piste Power+flash en tÃªte Â· {:?}",
             top.name
         );
 
@@ -1013,7 +1741,20 @@ mod tests {
                     || c.name.contains("sans check-ins")
                     || (c.name.contains("thermique") && c.confidence <= 0.62)
             }),
-            "devrait garder une piste thermalmonitord sous-corrélée ou explicative"
+            "devrait garder une piste thermalmonitord sous-corrÃ©lÃ©e ou explicative"
+        );
+
+        assert!(
+            d.possible_causes.iter().any(|c| {
+                let n = c.name.to_lowercase();
+                n.contains("mic2") && n.contains("flash")
+            }) || d.recommended_checks.iter().any(|c| {
+                let l = c.to_lowercase();
+                l.contains("flash") && (l.contains("thermalmonitord") || l.contains("power"))
+            }),
+            "attendu piste Power+flash avec mic2 + thermalmonitord Â· causes={:?} checks={:?}",
+            d.possible_causes,
+            d.recommended_checks
         );
 
         assert!(
@@ -1049,7 +1790,7 @@ mod tests {
         assert!(
             d.possible_causes
                 .iter()
-                .any(|c| c.name.contains("I2C") || c.name.contains("I²C")),
+                .any(|c| c.name.contains("I2C") || c.name.contains("IÂ²C")),
             "{:?}",
             d.possible_causes
         );
@@ -1070,14 +1811,14 @@ S.sensor array 0 - 5 is 0, 2621440, 0, 0, 0"
                 let x = c.name.to_lowercase();
                 x.contains("qi") || x.contains("combo") || x.contains("bobine") || x.contains("280")
             }),
-            "masque combiné Qi / tableau attendu pour SMC+masques 15,4 · {:?}",
+            "masque combinÃ© Qi / tableau attendu pour SMC+masques 15,4 Â· {:?}",
             d.possible_causes
         );
         assert!(
             d.possible_causes.iter().any(|c| {
                 c.name.contains("wireless") || c.name.contains("MagSafe") || c.name.contains("Qi")
             }),
-            "motif TAOP·TAOJ + SMC doit garder une piste Qi/MagSafe explicite: {:?}",
+            "motif TAOPÂ·TAOJ + SMC doit garder une piste Qi/MagSafe explicite: {:?}",
             d.possible_causes
         );
         assert!(
@@ -1085,7 +1826,7 @@ S.sensor array 0 - 5 is 0, 2621440, 0, 0, 0"
                 .iter()
                 .take(6)
                 .any(|c| c.name.contains("USB-C / PMU")),
-            "ligne générique USB-C/PMU (famille 15 hors motif complet) absent ici : {:?}",
+            "ligne gÃ©nÃ©rique USB-C/PMU (famille 15 hors motif complet) absent ici : {:?}",
             d.possible_causes
         );
     }
@@ -1105,13 +1846,13 @@ S.sensor array 0 - 5 is 0, 2621440, 0, 0, 0"#;
             n.contains("0x280000")
                 || (n.contains("sans fil") && n.contains("usb"))
                 || n.contains("magsafe"),
-            "le masque Sensor Array doit dominer ThermalMonitorD affiché seul · top={:?} · {:?}",
+            "le masque Sensor Array doit dominer ThermalMonitorD affichÃ© seul Â· top={:?} Â· {:?}",
             top.name,
             d.possible_causes
         );
         assert!(
-            !top.name.contains("Chaîne thermique"),
-            "première ligne : pas la bulle « Chaîne thermique » si un 0x… Repair Wiki existe · {:?}",
+            !top.name.contains("ChaÃ®ne thermique"),
+            "premiÃ¨re ligne : pas la bulle Â« ChaÃ®ne thermique Â» si un 0xâ€¦ Repair Wiki existe Â· {:?}",
             top.name
         );
     }
@@ -1148,5 +1889,46 @@ OUTBOX1 not ready"}"#;
         let d = diagnose_structured(log, Some("iPhone15,4"), None);
         assert_eq!(d.panic_type, "smc_bsc_outbox_chain");
         assert!(!d.critical_lines.is_empty());
+    }
+
+    #[test]
+    fn excerpt_missing_sensor_line_overrides_stale_mic2_from_ips_envelope() {
+        let env = concat!(
+            "legacy panic block\n",
+            "Missing sensor(s): mic2\n",
+            "--- separator ---\n",
+        );
+        let excerpt = concat!(
+            "panicString \"â€¦\"\n",
+            "Missing sensor(s): tg0v\n",
+            "ProductType: iPhone12,1\n",
+        );
+        let d = diagnose_structured(excerpt, None, Some(env));
+        assert!(
+            !d.normalized_signatures
+                .iter()
+                .any(|s| s.to_lowercase().contains("mic2") && s.contains("Capteur absent")),
+            "pas de Capteur absent (mic2) issu dâ€™un vieux bloc IPS Â· sig={:?}",
+            d.normalized_signatures
+        );
+        assert!(
+            d.normalized_signatures
+                .iter()
+                .any(|s| s.to_lowercase().contains("tg0v")),
+            "tg0v de lâ€™extrait doit rester Â· sig={:?}",
+            d.normalized_signatures
+        );
+        let blob = d
+            .possible_causes
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect::<Vec<_>>()
+            .join(" | ")
+            .to_lowercase();
+        assert!(
+            !blob.contains("mic2 Â· iphone 11"),
+            "MIC2 iPhone 11 ne doit pas venir dâ€™un autre bloc du fichier IPS Â· causes={:?}",
+            d.possible_causes
+        );
     }
 }

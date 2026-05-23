@@ -1,5 +1,3 @@
-//! Statistiques « base communautaire » — implémentation réseau au MVP 0.3 uniquement après consentement explicite.
-
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -21,8 +19,7 @@ pub fn get_community_stats(_signature_hash: &str, _model: Option<&str>) -> Commu
     CommunityStats {
         available: false,
         similar_count: 0,
-        message: "Base communautaire absente en V0.1 — aucune requête réseau. Connexion opt-in prévue au MVP 0.3."
-            .to_string(),
+        message: String::new(),
         buckets: vec![],
     }
 }

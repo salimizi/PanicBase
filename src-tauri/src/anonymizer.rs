@@ -1,10 +1,10 @@
-use regex::Regex;
+﻿use regex::Regex;
 
 pub fn anonymize_panic_log(log: &str) -> String {
     let mut cleaned = log.to_string();
 
     let patterns = [
-        (r"(?i)(serial(?: number|\s*n°)?\s*[:=]\s*)[A-Za-z0-9-]+", "$1[REDACTED]"),
+        (r"(?i)(serial(?: number|\s*nÂ°)?\s*[:=]\s*)[A-Za-z0-9-]+", "$1[REDACTED]"),
         (r"(?i)(imei\s*[:=]\s*)[0-9]+", "$1[REDACTED]"),
         (r"(?i)(udid\s*[:=]\s*)[A-Za-z0-9-]+", "$1[REDACTED]"),
         (r"(?i)(device name\s*[:=]\s*).+", "$1[REDACTED]"),

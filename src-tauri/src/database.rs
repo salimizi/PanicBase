@@ -1,12 +1,10 @@
-//! Base SQLite locale (`%LOCALAPPDATA%\\PanicBase\\panicbase.db` sur Windows).
-//! Schéma aligné roadmap — remplissage complet en MVP 0.2+.
-
+﻿
 use std::path::PathBuf;
 
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 
-use crate::{analyzer, anonymizer};
+use crate::{analyzer, anonymizer, crypto};
 
 pub fn db_path() -> PathBuf {
     dirs::data_local_dir()
@@ -68,14 +66,12 @@ CREATE TABLE IF NOT EXISTS community_matches (
 CREATE INDEX IF NOT EXISTS idx_panic_logs_signature ON panic_logs(signature_hash);
 ";
 
-/// Crée les tables si besoin. À appeler au démarrage de l’application.
 pub fn init_schema(conn: &Connection) -> Result<(), String> {
     conn.execute_batch("PRAGMA foreign_keys = ON;")
         .map_err(|e| e.to_string())?;
     conn.execute_batch(INIT_SQL).map_err(|e| e.to_string())
 }
 
-/// Initialise le fichier et le schéma.
 pub fn bootstrap() -> Result<(), String> {
     let c = open_connection()?;
     init_schema(&c)
@@ -104,6 +100,7 @@ pub fn list_local_panic_logs() -> Result<Vec<PanicLogSummary>, String> {
         .query_map([], |row| {
             Ok(PanicLogSummary {
                 id: row.get(0)?,
+                // device_model et ios_version ne sont pas chiffrÃ©s (non sensibles)
                 device_model: row.get(1)?,
                 ios_version: row.get(2)?,
                 panic_date: row.get(3)?,
@@ -127,18 +124,20 @@ pub fn insert_repair_confirmation(
 ) -> Result<(), String> {
     let conn = open_connection()?;
     init_schema(&conn)?;
+    // Chiffrer la note technicien
+    let enc_note = technician_note.map(|n| crypto::encrypt(n));
     conn.execute(
         "INSERT INTO repair_confirmations (panic_log_id, repair_type, success, technician_note) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![panic_log_id, repair_type, success as i32, technician_note],
+        rusqlite::params![panic_log_id, repair_type, success as i32, enc_note],
     )
-    .map_err(|e| format!("confirmation impossible (log #{panic_log_id} existe-t‑il dans panic_logs?) — {e}"))?;
+    .map_err(|e| format!("confirmation impossible (log #{panic_log_id} existe-t-il dans panic_logs?) â€” {e}"))?;
     Ok(())
 }
 
 pub fn read_panic_log_text(log_id: i64) -> Result<String, String> {
     let conn = open_connection()?;
     init_schema(&conn)?;
-    let text: Option<String> = conn
+    let stored: Option<String> = conn
         .query_row(
             "SELECT COALESCE(anonymized_text, '') FROM panic_logs WHERE id = ?1",
             [log_id],
@@ -146,11 +145,13 @@ pub fn read_panic_log_text(log_id: i64) -> Result<String, String> {
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    text.filter(|s| !s.is_empty())
-        .ok_or_else(|| format!("Aucun enregistrement PanicBase #{log_id} dans la base locale (MVP 0.2 : importer / enregistrer un log)."))
+    let raw = stored
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| format!("Aucun enregistrement PanicBase #{log_id} dans la base locale."))?;
+    // DÃ©chiffrer Ã  la lecture
+    Ok(crypto::decrypt(&raw))
 }
 
-/// Chemin du dossier où `idevicecrashreport` écrit les crashs (MVP 0.2).
 pub fn crash_reports_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -164,7 +165,6 @@ pub fn ensure_crash_reports_dir() -> Result<PathBuf, String> {
     Ok(p)
 }
 
-/// Enregistre un panic importé (IPS) : texte anonymisé, signature, ligne d’analyse liée.
 pub fn insert_panic_with_analysis_local(
     panic_plaintext: &str,
     device_hint: Option<&str>,
@@ -172,7 +172,15 @@ pub fn insert_panic_with_analysis_local(
     ios_version_hint: Option<&str>,
 ) -> Result<i64, String> {
     let analysis = analyzer::analyze_panic_log(panic_plaintext, device_hint, None);
+    // Anonymiser puis chiffrer avant stockage
     let anonymized = anonymizer::anonymize_panic_log(panic_plaintext);
+    let encrypted_text = crypto::encrypt(&anonymized);
+    let encrypted_cause = crypto::encrypt(&analysis.probable_cause);
+    let encrypted_explanation = if analysis.explanation.is_empty() {
+        None
+    } else {
+        Some(crypto::encrypt(&analysis.explanation))
+    };
 
     let mut conn = open_connection()?;
     init_schema(&conn)?;
@@ -185,7 +193,7 @@ pub fn insert_panic_with_analysis_local(
             ios_version_hint,
             Option::<String>::None,
             raw_path_label,
-            anonymized,
+            encrypted_text,     // â† chiffrÃ©
             analysis.signature,
             analysis.signature_hash,
         ],
@@ -198,9 +206,9 @@ pub fn insert_panic_with_analysis_local(
         "INSERT INTO analysis_results (panic_log_id, probable_cause, confidence, explanation) VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![
             id,
-            analysis.probable_cause,
+            encrypted_cause,       // â† chiffrÃ©
             i64::from(analysis.confidence),
-            analysis.explanation,
+            encrypted_explanation, // â† chiffrÃ©
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -208,4 +216,3 @@ pub fn insert_panic_with_analysis_local(
     tx.commit().map_err(|e| e.to_string())?;
     Ok(id)
 }
-

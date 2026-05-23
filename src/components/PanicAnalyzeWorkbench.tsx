@@ -1,16 +1,24 @@
 import type { ReactNode } from 'react';
+import { useI18n } from '../i18n/context';
+import { localizeDiagnosticText } from '../lib/diagnosticLocale';
+import { primaryPartHeadline } from '../lib/repairPartsSpeak';
 import type { AnalysisResult } from '../types/analysis';
+import type { CommunityStats } from '../types/community';
+import type { Locale } from '../i18n/translations';
 
-function fmtPct01(x: number) {
-  return Math.round(Math.max(0, Math.min(1, x)) * 100);
-}
-
-/** Affichage liste : même libellé que le moteur, sans suffixe encyclopédique. */
 function stripWikiTag(name: string) {
   return name.replace(/\s*\[Repair Wiki\]\s*$/i, '').trim();
 }
 
-/** Type de panic moteur (contexte SMC / watchdog…). */
+type TFn = (key: string, vars?: Record<string, string | number>) => string;
+
+function localizedPanicFamily(t: TFn, panicType: string): string {
+  const key = `workbench.panicFamily.${panicType}`;
+  const s = t(key);
+  if (s !== key) return s;
+  return panicFamilleCourt(panicType);
+}
+
 function panicFamilleCourt(panicType: string): string {
   const labels: Record<string, string> = {
     smc_bsc_outbox_chain: 'SMC · BSC · OUTBOX',
@@ -28,50 +36,37 @@ function panicFamilleCourt(panicType: string): string {
   return panicType.replace(/_/g, ' ');
 }
 
-const UNCLASSIFIED_RE = /^Non classifié/i;
+const UNCLASSIFIED_RE = /^(Non classifié|Unclassified)/i;
 
-const MAX_UI_CRITICAL_LINES = 10;
-const MAX_UI_CRITICAL_CHARS = 88;
+function fmtPct01(x: number) {
+  return Math.round(Math.max(0, Math.min(1, x)) * 100);
+}
 
-/** Ce que le backend a retenu dans le log (SMC, sensor array, missing sensor, etc.) — lisible, sans dump complet. */
-function formatCriticalLinesForUi(lines: string[] | undefined): string {
+const MAX_UI_CRITICAL_LINES = 14;
+const MAX_UI_CRITICAL_CHARS = 140;
+
+function formatCriticalLinesForUi(lines: string[] | undefined, emptyHint: string, locale: Locale): string {
   if (!lines?.length) {
-    return '— (aucun signal SMC / capteur isolé dans l’extrait analysé)';
+    return emptyHint;
   }
   return lines
     .slice(0, MAX_UI_CRITICAL_LINES)
     .map((l) => {
-      const t = l.trim();
-      if (t.length <= MAX_UI_CRITICAL_CHARS) return t;
-      return `${t.slice(0, MAX_UI_CRITICAL_CHARS)}…`;
+      const line = localizeDiagnosticText(l.trim(), locale);
+      if (line.length <= MAX_UI_CRITICAL_CHARS) return line;
+      return `${line.slice(0, MAX_UI_CRITICAL_CHARS)}…`;
     })
     .join('\n');
 }
 
-/** Ex. « 0x280000 · 0x100000 » — aligné sur les lignes `Mask 0x…` du moteur (même IPS peut en avoir plusieurs). */
-function sensorMasksFromWikiHints(wikiHints: string[]): string | null {
-  const seen = new Set<string>();
-  const order: string[] = [];
-  for (const line of wikiHints) {
-    const m = /Mask\s+(0x[0-9a-f]+)\s*\(\d+\)/i.exec(line);
-    if (!m) continue;
-    const hex = m[1].toLowerCase();
-    if (seen.has(hex)) continue;
-    seen.add(hex);
-    order.push(hex);
-  }
-  return order.length ? order.join(' · ') : null;
-}
-
-/** Libellé atelier : nappe / assemblage (cause n°1), pas seulement la famille SMC. */
-function technicianHardwareLine(analysis: AnalysisResult): {
+function technicianHardwareLine(analysis: AnalysisResult, t: TFn): {
   piece: string;
   famillePanic: string;
   conf01: number;
   hasOrientedGuess: boolean;
 } {
   const sd = analysis.structured_diagnostic;
-  const famillePanic = panicFamilleCourt(analysis.panic_type);
+  const famillePanic = localizedPanicFamily(t, analysis.panic_type);
   const rawProb = analysis.probable_cause?.trim() ?? '';
   const top = sd.possible_causes?.[0];
   const conf01 =
@@ -94,6 +89,27 @@ function technicianHardwareLine(analysis: AnalysisResult): {
   };
 }
 
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="m-0 font-sora text-[10px] font-medium uppercase tracking-wide text-base-content/45">{children}</p>
+  );
+}
+
+export type WorkbenchCompactLabels = {
+  signals: string;
+  noSignals: string;
+  model: string;
+  part: string;
+};
+
+export type WorkbenchFullLabels = {
+  model: string;
+  part: string;
+  score: string;
+  notEnough: string;
+  causesAria: string;
+};
+
 type Props = {
   panicText: string;
   analysis: AnalysisResult;
@@ -102,6 +118,13 @@ type Props = {
   rightActions?: ReactNode;
   hideSourceLog?: boolean;
   compactSummary?: boolean;
+  /** Libellés UI (compact + mode détaillé). Par défaut : anglais. */
+  labels?: {
+    compact?: WorkbenchCompactLabels;
+    full?: WorkbenchFullLabels;
+  };
+  /** Stats base communautaire (optionnel) — affichées avec les causes moteur en vue détail. */
+  community?: CommunityStats | null;
 };
 
 export function PanicAnalyzeWorkbench({
@@ -112,49 +135,80 @@ export function PanicAnalyzeWorkbench({
   rightActions,
   hideSourceLog = false,
   compactSummary = false,
+  labels,
+  community = null,
 }: Props) {
+  const { locale, t } = useI18n();
   const sd = analysis.structured_diagnostic;
-  const tech = technicianHardwareLine(analysis);
-  const masksInLog = sensorMasksFromWikiHints(sd.wiki_hints ?? []);
-  const maxC =
-    sd.possible_causes?.reduce((m, c) => Math.max(m, c.confidence), 0.01) ?? 1;
+  const tech = technicianHardwareLine(analysis, t);
+  const pieceUi = localizeDiagnosticText(tech.piece, locale);
+  const pieceReadable = primaryPartHeadline(analysis, locale, t) || pieceUi;
+
+  const compactL: WorkbenchCompactLabels = {
+    signals: t('workbench.signals'),
+    noSignals: t('workbench.noSignals'),
+    model: t('workbench.model'),
+    part: t('workbench.part'),
+    ...labels?.compact,
+  };
+  const fullL: WorkbenchFullLabels = {
+    model: t('workbench.model'),
+    part: t('workbench.part'),
+    score: t('workbench.score'),
+    notEnough: t('workbench.notEnough'),
+    causesAria: t('workbench.causesAria'),
+    ...labels?.full,
+  };
+
+  const communityBucketsSorted = community?.buckets?.length
+    ? [...community.buckets].sort((a, b) => b.count - a.count).slice(0, 3)
+    : [];
 
   const signalsBlock = compactSummary
-    ? formatCriticalLinesForUi(sd.critical_lines)
+    ? formatCriticalLinesForUi(sd.critical_lines, compactL.noSignals, locale)
     : panicText.trim() || '—';
 
-  const leftHeading = compactSummary ? 'Signaux retenus' : leftTitle;
+  const leftHeading = compactSummary ? compactL.signals : leftTitle;
 
   const showLeftPane = compactSummary ? true : !hideSourceLog;
 
   const gridCols = !showLeftPane
     ? 'grid-cols-1'
     : compactSummary
-      ? 'grid-cols-2'
+      ? 'grid-cols-1 md:grid-cols-2'
       : hideSourceLog
         ? 'grid-cols-1'
-        : 'grid-cols-2';
+        : 'grid-cols-1 lg:grid-cols-2';
+
+  const gridHeight =
+    compactSummary ? 'min-h-0 flex-1' : 'min-h-[min(52vh,480px)] sm:min-h-0 flex-1';
 
   return (
     <div
-      className={`grid min-h-0 flex-1 gap-0 overflow-hidden rounded-lg border border-base-content/10 bg-base-300/15 ${gridCols}`}
+      className={`grid w-full min-w-0 grid-rows-1 flex-1 gap-0 overflow-hidden rounded-box border border-base-300 bg-base-100/40 ${gridHeight} ${gridCols}`}
     >
       {showLeftPane ? (
         <aside
-          className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-base-content/10 bg-base-300/50"
+          className={`flex min-w-0 flex-col overflow-hidden border-base-300 bg-base-200/50 sm:border-r ${
+            compactSummary ? 'min-h-0 md:border-r' : 'min-h-[12rem] sm:min-h-0'
+          }`}
           aria-labelledby="panic-code-heading"
         >
-          <div className="shrink-0 border-b border-base-content/5 px-2.5 py-1.5">
-            <h2 id="panic-code-heading" className="mb-0 text-[10px] font-black uppercase tracking-widest text-base-content/45">
+          <div className={`shrink-0 border-b border-base-300 sm:px-4 ${compactSummary ? 'px-2.5 py-2' : 'px-3 py-2.5'}`}>
+            <h2 id="panic-code-heading" className="m-0 font-sora text-xs font-semibold tracking-wide text-base-content/70">
               {leftHeading}
             </h2>
             {fileLabel ? (
-              <span className="mt-1 block font-mono text-xs font-bold break-all text-info">{fileLabel}</span>
+              <p className="mb-0 mt-1 font-mono text-[10px] leading-snug text-base-content/60">{fileLabel}</p>
             ) : null}
           </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+          <div className={`subtle-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden ${compactSummary ? 'p-2 sm:p-3' : 'p-3 sm:p-4'}`}>
             <pre
-              className="font-mono m-0 min-h-0 flex-1 overflow-hidden text-[10px] leading-snug whitespace-pre-wrap break-words text-info"
+              className={`font-mono m-0 min-h-0 w-full min-w-0 flex-1 rounded-md border border-base-300/80 bg-base-300/35 whitespace-pre-wrap break-words text-base-content/85 ${
+                compactSummary
+                  ? 'p-2 text-[10px] leading-snug sm:text-[11px]'
+                  : 'p-3 text-[11px] leading-relaxed sm:text-[12px]'
+              }`}
               tabIndex={0}
             >
               {signalsBlock}
@@ -164,103 +218,100 @@ export function PanicAnalyzeWorkbench({
       ) : null}
 
       <section
-        className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${
-          compactSummary ? '' : 'bg-base-200/20'
-        }`}
-        aria-label="Diagnostic"
+        className={`flex min-w-0 flex-col overflow-hidden bg-base-100/25 ${compactSummary ? 'min-h-0' : 'min-h-[12rem] sm:min-h-0'}`}
+        aria-label={t('aria.diagnosticSection')}
       >
         <div
           className={
             compactSummary
-              ? 'flex min-h-0 flex-1 flex-col gap-1 overflow-hidden px-3.5 py-2'
-              : 'flex flex-col gap-3.5 overflow-hidden p-4'
+              ? 'subtle-scrollbar flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2.5 overflow-y-auto overflow-x-hidden px-2.5 py-2.5 sm:gap-3 sm:px-3 sm:py-3'
+              : 'subtle-scrollbar flex flex-col gap-3.5 overflow-y-auto overflow-x-hidden p-4'
           }
         >
           {compactSummary ? (
             <>
-              <p className="m-0 text-[9px] font-extrabold uppercase tracking-widest text-base-content/60">Modèle</p>
-              <p className="m-0 text-lg font-black leading-tight tracking-tight text-base-content">
-                {analysis.device_model}
-              </p>
-              <p className="m-0 mt-3 text-[9px] font-extrabold uppercase tracking-widest text-base-content/60">
-                Pièce probable
-              </p>
-              <p className="m-0 line-clamp-4 text-base font-extrabold leading-snug text-info">{tech.piece}</p>
-              {masksInLog ? (
-                <p
-                  className="m-0 mt-2 line-clamp-3 rounded-lg border border-primary/20 bg-base-300/80 px-2 py-1.5 font-mono text-[11px] leading-snug text-base-content/90"
-                  title="Valeurs exactes lues dans S./F.sensor array de ce log"
-                >
-                  Masques (log) · {masksInLog}
-                </p>
-              ) : null}
-              {tech.hasOrientedGuess ? (
-                <p className="m-0 mt-1 text-[11px] font-semibold text-base-content/55" title={tech.famillePanic}>
-                  {tech.famillePanic}
-                  {' · ~'}
-                  {fmtPct01(tech.conf01)}%
-                </p>
-              ) : (
-                tech.famillePanic !== tech.piece && (
-                  <p className="m-0 mt-1 text-[11px] text-base-content/55">{tech.famillePanic}</p>
-                )
+              <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-start sm:gap-4">
+                <div className="min-w-0 sm:flex-1">
+                  <FieldLabel>{compactL.model}</FieldLabel>
+                  <p className="mb-0 mt-0.5 font-outfit text-sm font-semibold leading-snug tracking-tight text-base-content sm:text-base">
+                    {analysis.device_model}
+                  </p>
+                </div>
+                <div className="min-w-0 border-t border-base-300/70 pt-2.5 sm:flex-1 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+                  <FieldLabel>{compactL.part}</FieldLabel>
+                  <p className="mb-0 mt-0.5 font-sora text-[12px] font-medium leading-snug text-base-content sm:text-[13px]">
+                    {pieceReadable}
+                  </p>
+                  {tech.famillePanic ? (
+                    <p className="mb-0 mt-1 font-sora text-[9px] leading-snug text-base-content/48">{tech.famillePanic}</p>
+                  ) : null}
+                </div>
+              </div>
+
+              {((typeof sd.confidence_global === 'number' && sd.confidence_global > 0) ||
+                community?.message ||
+                communityBucketsSorted.length > 0) && (
+                <div className="flex min-w-0 flex-col gap-2.5 border-t border-base-300/70 pt-2.5">
+                  {typeof sd.confidence_global === 'number' && sd.confidence_global > 0 ? (
+                    <p className="m-0 font-sora text-[10px] leading-snug text-base-content/55">
+                      {t('workbench.consolidatedScore', { pct: String(fmtPct01(sd.confidence_global)) })}
+                    </p>
+                  ) : null}
+
+                  {community?.message || communityBucketsSorted.length > 0 ? (
+                    <div className="min-w-0">
+                      <FieldLabel>{t('workbench.communityBaseTitle')}</FieldLabel>
+                      {communityBucketsSorted.length > 0 ? (
+                        <ol className="mb-0 mt-1.5 list-decimal space-y-1.5 ps-4 font-sora text-[11px] leading-snug text-base-content/80 sm:text-[12px]">
+                          {communityBucketsSorted.map((b, i) => (
+                            <li key={`b-${i}-${b.label.slice(0, 48)}`} className="break-words pl-0.5 marker:text-base-content/40">
+                              <span className="font-medium text-base-content/90">
+                                {localizeDiagnosticText(b.label.trim(), locale)}
+                              </span>
+                              <span className="ms-1 font-mono text-[10px] text-base-content/50">
+                                {t('workbench.communityBucketMeta', {
+                                  pct: String(b.percent),
+                                  count: String(b.count),
+                                })}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      ) : community?.message ? (
+                        <p className="comm-toned m-0 mt-1.5 max-w-full text-[11px] leading-relaxed text-base-content/60 break-words">
+                          {localizeDiagnosticText(community.message, locale)}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               )}
             </>
           ) : (
             <>
               <p className="m-0 grid grid-cols-[minmax(106px,34%)_1fr] items-baseline gap-x-2.5 gap-y-0 text-sm">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-base-content/70">Modèle</span>
-                <span className="font-bold tracking-tight text-base-content">{analysis.device_model}</span>
+                <span className="font-sora text-[10px] font-medium uppercase tracking-wide text-base-content/45">
+                  {fullL.model}
+                </span>
+                <span className="font-outfit font-semibold tracking-tight text-base-content">{analysis.device_model}</span>
               </p>
               <p className="m-0 grid grid-cols-[minmax(106px,34%)_1fr] items-start gap-x-2.5 text-sm">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-base-content/70">
-                  Pièce probable
+                <span className="font-sora text-[10px] font-medium uppercase tracking-wide text-base-content/45">
+                  {fullL.part}
                 </span>
-                <span className="flex flex-col items-start gap-1 font-bold text-base-content">
-                  <span>{tech.piece}</span>
-                  {tech.hasOrientedGuess ? (
-                    <span className="text-[11px] font-semibold text-base-content/55">
-                      {tech.famillePanic} · ~{fmtPct01(tech.conf01)}%
-                    </span>
-                  ) : null}
+                <span className="flex min-w-0 flex-col items-start gap-1 font-sora font-medium leading-relaxed text-base-content">
+                  <span className="break-words">{pieceReadable}</span>
+                  {tech.famillePanic ? <span className="text-[11px] text-base-content/50">{tech.famillePanic}</span> : null}
                 </span>
-              </p>
-              <p className="m-0 grid grid-cols-[minmax(106px,34%)_1fr] items-baseline gap-x-2.5 text-sm">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-base-content/70">Score</span>
-                <span className="text-2xl font-black tracking-tight text-success">{fmtPct01(sd.confidence_global)}%</span>
               </p>
             </>
           )}
-
-          {!compactSummary &&
-            (sd.possible_causes?.length ? (
-              <ul className="m-1 mt-0 flex list-none flex-col gap-2.5 overflow-hidden p-0" aria-label="Probabilités par cause">
-                {sd.possible_causes.map((c, i) => (
-                  <li key={`${i}-${c.name.slice(0, 48)}`} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
-                    <span className="col-span-2 text-xs font-semibold leading-snug text-base-content">
-                      {stripWikiTag(c.name)}
-                    </span>
-                    <span className="h-1 self-center rounded-full bg-base-content/10" aria-hidden>
-                      <span
-                        className="block h-full rounded-full bg-gradient-to-r from-success/55 to-info/85"
-                        style={{ width: `${Math.round((c.confidence / maxC) * 100)}%` }}
-                      />
-                    </span>
-                    <span className="min-w-[2.25rem] text-right text-xs font-extrabold text-success">
-                      {fmtPct01(c.confidence)}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="m-0 text-xs text-base-content/55">Pas assez de signal — log plus complet.</p>
-            ))}
 
           {rightActions ? (
             <div
               className={
                 compactSummary
-                  ? 'mt-3 flex min-h-0 shrink-0 flex-col gap-2 overflow-hidden [&_.comm-toned]:mt-0 [&_.comm-toned]:truncate [&_.comm-toned]:border-t-0 [&_.comm-toned]:pt-0 [&_.ips-saved]:truncate'
+                  ? 'mt-auto flex min-h-0 shrink-0 flex-col gap-1.5 border-t border-base-300/80 pt-2.5 [&_.comm-toned]:mt-0 [&_.comm-toned]:border-t-0 [&_.comm-toned]:pt-0 [&_.comm-toned]:break-words [&_.comm-toned]:whitespace-normal'
                   : 'mt-2 flex shrink-0 flex-col gap-2'
               }
             >

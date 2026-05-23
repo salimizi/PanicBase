@@ -1,47 +1,102 @@
-# PanicBase V0.1
+# PanicBase
 
-Analyseur de panic logs iPhone — Windows-first — Tauri + Rust + React.
+**iPhone panic log analyzer for repair technicians — Windows-first — Tauri 2 + Rust + React**
 
-## Lancer le projet
+PanicBase reads iPhone panic logs (via USB or `.ips` / `.panic` file import), diagnoses hardware faults, and generates repair-oriented reports. Designed for independent repair shops and advanced technicians.
 
-```bash
+---
+
+## Features
+
+- **Panic log analysis** — pattern-matched diagnosis with confidence score, probable cause, and recommended checks
+- **USB iPhone detection** — live plug/unplug detection via libimobiledevice, no iTunes required
+- **Direct log pull** — extracts panic logs from connected iPhone over USB
+- **`.ips` / `.panic` import** — drag-and-drop or file picker for offline analysis
+- **Gallery & media transfer** — browse, preview and export photos/videos from iPhone over USB
+- **Contacts export** — export contacts to `.vcf` from iPhone backup
+- **iCloud Photos** — browse and download iCloud photo library (requires iCloud sign-in via WebView)
+- **Encrypted local database** — all stored data encrypted at rest (ChaCha20-Poly1305, key in OS keychain)
+- **Anonymization** — IMEI, UDID, Serial stripped before storage
+- **Multi-language UI** — English, French, and more
+
+---
+
+## Requirements
+
+| Dependency | Notes |
+|---|---|
+| Node.js 20+ | |
+| Rust stable | `rustup update stable` |
+| Visual Studio Build Tools (C++) | Required by Tauri on Windows |
+| WebView2 Runtime | Pre-installed on Windows 11 |
+| `libimobiledevice` | `idevice_id`, `idevicecrashreport` in PATH or `PANICBASE_IDEVICE_DIR` |
+
+### libimobiledevice setup
+
+PanicBase does **not** bundle libimobiledevice binaries. At least one of these must be available:
+
+- `idevice_id.exe` + DLLs in PATH
+- `PANICBASE_IDEVICE_DIR` env var pointing to a folder containing `idevice_id.exe` and its DLLs
+- `LIBIMOBILEDEVICE_HOME` env var
+
+Verify: `idevice_id -l` should list a connected device's UDID.
+
+---
+
+## Development
+
+```powershell
 npm install
 npm run tauri:dev
 ```
 
-## Build Windows
+---
 
-```bash
+## Build
+
+A 32-byte build key is required to seal the embedded knowledge base at compile time.
+
+```powershell
+# Generate once and store securely
+$env:PANICBASE_KB_KEY = (openssl rand -hex 32)
+
+# Or load from .env.local (gitignored)
+Get-Content .env.local | ForEach-Object { $k,$v = $_ -split '=',2; [System.Environment]::SetEnvironmentVariable($k,$v) }
+
 npm run tauri:build
 ```
 
-## Fonctionnalités V0.1
+> **Keep `PANICBASE_KB_KEY` secret.** It is required to rebuild and to decrypt any previously stored data.
 
-- Interface React propre
-- Commande Rust `detect_iphone()` via `idevice_id -l`
-- Analyse locale basique des panic logs
-- Détection de mots-clés : mic1, mic2, prs0, TG0B, TG0V, ANS2, baseband, thermalmonitord, AppleBCMWLAN
-- Signature + hash SHA256
-- Anonymisation locale basique
-- Aucun upload serveur
+Output installers:
+- `src-tauri/target/release/bundle/msi/PanicBase_x64_en-US.msi`
+- `src-tauri/target/release/bundle/nsis/PanicBase_x64-setup.exe`
 
-## Pré-requis Windows
+---
 
-- Node.js
-- Rust
-- Visual Studio Build Tools C++
-- WebView2 Runtime
-- libimobiledevice dans le PATH Windows pour la détection iPhone
+## Architecture
 
-## Roadmap prochaine étape
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + TypeScript + Tailwind CSS + DaisyUI (Vite) |
+| Backend | Rust (Tauri 2) |
+| Storage | SQLite — sensitive fields encrypted (ChaCha20-Poly1305) |
+| iPhone USB | libimobiledevice (no network, no iTunes) |
+| Knowledge base | Embedded, sealed at build time |
 
-1. Ajouter récupération réelle des panic logs avec `idevicecrashreport`
-2. Détecter modèle iPhone + iOS
-3. Ajouter SQLite local
-4. Ajouter API communautaire opt-in
-5. Ajouter confirmation réparation
-6. Ajouter scoring communautaire
+---
 
-## Principe sécurité
+## Security
 
-Le logiciel est gratuit mais pas open-source. Le moteur avancé et la base communautaire doivent rester côté serveur.
+- All sensitive DB fields encrypted at rest (ChaCha20-Poly1305)
+- Encryption key stored in Windows Credential Manager / macOS Keychain
+- Panic log data anonymized before storage (IMEI, UDID, Serial, paths stripped)
+- Knowledge base sealed at build time — key never in source or binary plain text
+- CSP enforced on WebView
+- No network telemetry
+
+---
+
+## License
+
+All rights reserved — © 2025 PanicBase. Source published for transparency; redistribution and commercial use require written permission.

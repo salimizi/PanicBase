@@ -1,10 +1,11 @@
-use serde::Serialize;
+﻿use serde::{Deserialize, Serialize};
 
 use crate::iphone;
 use crate::panic_diagnostic::{diagnose_structured, StructuredDiagnostic};
+use crate::reference_focus::{infer_panic_reference_focus, PanicReferenceFocus};
 use crate::signature::{build_signature, hash_signature};
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AnalysisResult {
     pub device_model: String,
     pub detected: bool,
@@ -15,8 +16,15 @@ pub struct AnalysisResult {
     pub explanation: String,
     pub signature: String,
     pub signature_hash: String,
-    /// Pipeline obligatoire extraction → signatures normalisées → causes pondérées (JSON métier).
     pub structured_diagnostic: StructuredDiagnostic,
+    #[serde(default)]
+    pub reference_focus: PanicReferenceFocus,
+}
+
+fn is_apple_internal_product_token(dev: &str) -> bool {
+    let t = dev.trim();
+    let lc = t.to_ascii_lowercase();
+    (lc.starts_with("iphone") || lc.starts_with("ipad")) && lc.contains(',')
 }
 
 pub fn analyze_panic_log(
@@ -30,16 +38,29 @@ pub fn analyze_panic_log(
         structured.marketing_name.as_deref(),
         structured.device.trim(),
     ) {
-        (Some(m), dev) if !dev.is_empty() && dev != "unknown" => format!("{m} · {dev}"),
+        (Some(m), dev)
+            if !dev.is_empty()
+                && !dev.eq_ignore_ascii_case("unknown")
+                && is_apple_internal_product_token(dev) =>
+        {
+            m.to_string()
+        }
+        (Some(m), dev) if !dev.is_empty() && !dev.eq_ignore_ascii_case("unknown") => {
+            if dev.trim().eq_ignore_ascii_case(m.trim()) {
+                m.to_string()
+            } else {
+                format!("{m} Â· {dev}")
+            }
+        }
         (Some(m), _) => m.to_string(),
-        (None, dev) if !dev.is_empty() && dev != "unknown" => dev.to_string(),
+        (None, dev) if !dev.is_empty() && !dev.eq_ignore_ascii_case("unknown") => dev.to_string(),
         _ => {
             if let Some(h) = device_model_hint.map(str::trim).filter(|s| !s.is_empty()) {
                 h.to_string()
             } else if let Some(m) = iphone::marketing_display_for_hints(device_model_hint) {
                 m
             } else {
-                "Non renseigné".to_string()
+                "Non renseignÃ©".to_string()
             }
         }
     };
@@ -64,7 +85,7 @@ pub fn analyze_panic_log(
         .possible_causes
         .first()
         .map(|p| p.name.clone())
-        .unwrap_or_else(|| "Non classifié (signatures insuffisantes)".into());
+        .unwrap_or_else(|| "Non classifiÃ© (signatures insuffisantes)".into());
 
     let confidence = (structured.confidence_global * 100.0)
         .round()
@@ -72,7 +93,7 @@ pub fn analyze_panic_log(
 
     let detected = confidence > 0 || !structured.normalized_signatures.is_empty();
 
-    AnalysisResult {
+    let mut result = AnalysisResult {
         device_model: device_display,
         detected,
         panic_type,
@@ -83,5 +104,13 @@ pub fn analyze_panic_log(
         signature,
         signature_hash,
         structured_diagnostic: structured,
-    }
+        reference_focus: PanicReferenceFocus {
+            nav_section: "iphone-x".into(),
+            confidence: 0.0,
+            initial_search: String::new(),
+        },
+    };
+    result.reference_focus =
+        infer_panic_reference_focus(log, &result, device_model_hint);
+    result
 }

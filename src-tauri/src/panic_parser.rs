@@ -1,4 +1,4 @@
-use regex::Regex;
+﻿use regex::Regex;
 
 #[derive(Debug, Clone)]
 pub struct ParsedPanicLog {
@@ -60,6 +60,21 @@ pub fn parse_panic_log(log: &str) -> ParsedPanicLog {
     }
 }
 
+fn push_missing_tokens(line: &str, sensors: &mut Vec<String>, seen: &mut std::collections::HashSet<String>) {
+    for part in line.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
+        let cleaned: String = part
+            .trim()
+            .trim_matches(|c: char| c == '[' || c == ']' || c == '"' || c == '\'')
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .collect::<String>()
+            .to_lowercase();
+        if cleaned.len() >= 2 && cleaned.len() <= 24 && seen.insert(cleaned.clone()) {
+            sensors.push(cleaned);
+        }
+    }
+}
+
 fn extract_missing_sensors(log: &str) -> Vec<String> {
     let re = Regex::new(r"(?i)missing sensor\(s\)?:?\s*([^\n\r]+)").unwrap();
     let mut sensors = Vec::new();
@@ -67,24 +82,21 @@ fn extract_missing_sensors(log: &str) -> Vec<String> {
 
     for caps in re.captures_iter(log) {
         if let Some(group) = caps.get(1) {
-            let line = group.as_str();
-            for part in line.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
-                let cleaned: String = part
-                    .trim()
-                    .trim_matches(|c: char| c == '[' || c == ']' || c == '"' || c == '\'')
-                    .chars()
-                    .filter(|c| c.is_ascii_alphanumeric())
-                    .collect::<String>()
-                    .to_lowercase();
-                if cleaned.len() >= 2
-                    && cleaned.len() <= 24
-                    && seen.insert(cleaned.clone())
-                {
-                    sensors.push(cleaned);
-                }
-            }
+            push_missing_tokens(group.as_str(), &mut sensors, &mut seen);
         }
     }
 
+    sensors
+}
+
+pub(crate) fn extract_missing_sensors_last(log: &str) -> Vec<String> {
+    let re = Regex::new(r"(?i)missing sensor\(s\)?:?\s*([^\n\r]+)").unwrap();
+    let mut sensors = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    if let Some(caps) = re.captures_iter(log).last() {
+        if let Some(group) = caps.get(1) {
+            push_missing_tokens(group.as_str(), &mut sensors, &mut seen);
+        }
+    }
     sensors
 }

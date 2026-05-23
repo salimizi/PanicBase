@@ -1,0 +1,292 @@
+/* Résultat diagnostic atelier — UI moderne (thème clair) */
+.pb-workshop-result {
+  --ws-accent: #2563eb;
+  --ws-accent-dim: rgb(37 99 235 / 0.08);
+  --ws-border: rgb(0 0 0 / 0.08);
+  --ws-surface: linear-gradient(165deg, oklch(100% 0 0) 0%, oklch(98% 0.004 258) 100%);
+  --ws-text: #1f2937;
+  --ws-muted: rgb(75 85 99 / 0.85);
+  --ws-soft:  rgb(75 85 99 / 0.65);
+  --ws-radius: 16px;
+  border-radius: var(--ws-radius);
+  border: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.03),
+    0 18px 40px -28px rgb(0 0 0 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.8);
+  overflow: hidden;
+  color: var(--ws-text);
+}
+
+.pb-workshop-result__hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--ws-border);
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.02) 0%, transparent 100%);
+}
+
+.pb-workshop-result__model {
+  margin: 0;
+  font-family: var(--font-sora, system-ui), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ws-text);
+}
+
+.pb-workshop-result__soc {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--ws-muted);
+}
+
+.pb-workshop-result__badge-live {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ws-accent);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgb(37 99 235 / 0.3);
+  background: var(--ws-accent-dim);
+}
+
+.pb-workshop-card {
+  margin: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ws-border);
+  background: oklch(100% 0 0 / 0.7);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.pb-workshop-card--open {
+  border-color: rgb(37 99 235 / 0.35);
+  box-shadow: 0 0 0 1px rgb(37 99 235 / 0.08);
+}
+
+.pb-workshop-card__trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+
+.pb-workshop-card__trigger:hover {
+  background: rgb(0 0 0 / 0.03);
+}
+
+.pb-workshop-card__trigger-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pb-workshop-card__eyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ws-muted);
+}
+
+.pb-workshop-card__headline {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ws-text);
+}
+
+.pb-workshop-card__hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ws-soft);
+}
+
+.pb-workshop-card__chevron {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ws-soft);
+  transition: transform 0.2s;
+}
+
+.pb-workshop-card--open .pb-workshop-card__chevron {
+  transform: rotate(90deg);
+}
+
+.pb-workshop-card__body {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--ws-border);
+}
+
+.pb-workshop-card__verdict {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--ws-accent-dim);
+  border: 1px solid rgb(37 99 235 / 0.25);
+}
+
+.pb-workshop-card__verdict-label {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ws-accent);
+}
+
+.pb-workshop-card__verdict-title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ws-text);
+}
+
+.pb-workshop-card__verdict-parts {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgb(55 65 81);
+}
+
+.pb-workshop-card__cause {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.025);
+  border: 1px solid var(--ws-border);
+}
+
+.pb-workshop-card__cause-label {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ws-muted);
+}
+
+.pb-workshop-card__cause-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgb(31 41 55);
+}
+
+.pb-workshop-card__steps-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ws-muted);
+}
+
+.pb-workshop-card__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pb-workshop-card__step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.pb-workshop-card__step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ws-accent);
+  background: var(--ws-accent-dim);
+  border: 1px solid rgb(37 99 235 / 0.25);
+}
+
+.pb-workshop-card__step-text {
+  margin: 0;
+  padding-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgb(31 41 55);
+}
+
+.pb-workshop-card__codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ws-border);
+}
+
+.pb-workshop-card__code {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: rgb(55 65 81);
+  background: oklch(100% 0 0 / 0.7);
+  border: 1px solid var(--ws-border);
+}
+
+.pb-workshop-card__note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgb(120 53 15);
+  background: rgb(245 158 11 / 0.08);
+  border: 1px solid rgb(245 158 11 / 0.3);
+}
+
+.pb-workshop-card__sev {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+
+.pb-workshop-card__sev--hw {
+  color: rgb(153 27 27);
+  background: rgb(220 38 38 / 0.08);
+  border: 1px solid rgb(220 38 38 / 0.3);
+}
+
+.pb-workshop-card__sev--sw {
+  color: rgb(6 95 70);
+  background: rgb(16 185 129 / 0.08);
+  border: 1px solid rgb(16 185 129 / 0.3);
+}
+
+.pb-workshop-card__sev--combo {
+  color: rgb(120 53 15);
+  background: rgb(245 158 11 / 0.08);
+  border: 1px solid rgb(245 158 11 / 0.3);
+}

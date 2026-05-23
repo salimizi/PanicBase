@@ -1,6 +1,43 @@
 node_modules
 dist
+dist-community
+*.map
 src-tauri/target
 .env
+*.env.local
 *.log
 .DS_Store
+
+# Knowledge base — IP propriétaire, ne jamais publier
+src-tauri/src/kb.json
+src/data/iphone_panic_database.json
+src/generated/panicReferenceSections.json
+public/iphone_panic_reference_enriched.html
+public/iphone_panic_reference_dev.html
+
+# Scripts de construction de la KB (révèlent les sources)
+scripts/merge_kb*.py
+scripts/merge_kb*.mjs
+scripts/apply_iphone*.py
+scripts/enrich_kb*.py
+scripts/enrich_kb*.mjs
+scripts/merge-kb*.mjs
+scripts/sync-libimobiledevice-from-ida.mjs
+
+# Exports internes / sessions de travail Claude — ne jamais publier
+export-claude/
+_claude_patch/
+.claude/
+PANICBASE_DANGEROUS_MODE.md
+PANICBASE_INTERNET_CASES_ADDED.md
+PANICBASE_PRO_NOTES.md
+check_out.txt
+
+# Artefacts de build sensibles
+src-tauri/out/
+src-tauri/tmp_kb_check.json
+
+# Bundle libimobiledevice
+src-tauri/resources/libimobiledevice/*
+!src-tauri/resources/libimobiledevice/.gitkeep
+!src-tauri/resources/libimobiledevice/README.txt

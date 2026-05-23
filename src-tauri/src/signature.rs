@@ -1,4 +1,4 @@
-use serde::Serialize;
+﻿use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::panic_parser;
@@ -24,7 +24,7 @@ pub fn hash_signature(signature: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-/// Recalcule signature + SHA256 hors pipeline d’analyse (commande dédiée).
+
 pub fn bundle_from_log(log: &str, device_model_arg: String) -> SignatureBundle {
     let parsed = panic_parser::parse_panic_log(log);
     let m = device_model_arg.trim();

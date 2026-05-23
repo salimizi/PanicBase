@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" width="120" alt="PanicBase" />
+</p>
+
 # PanicBase
 
 **iPhone panic log analyzer for repair technicians — Windows-first — Tauri 2 + Rust + React**
